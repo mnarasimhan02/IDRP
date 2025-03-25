@@ -12,6 +12,7 @@ import IDRPView from './pages/IDRPView';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import Documentation from './pages/Documentation';
+import AuditView from './pages/AuditView';
 
 // Import components
 import Navbar from './components/Navbar';
@@ -29,6 +30,7 @@ function App() {
           <Route path="/idrps" element={<IDRPView />} />
           <Route path="/idrp/:id" element={<IDRPDetail />} />
           <Route path="/idrp/:id/edit" element={<IDRPDetail isEditing={true} />} />
+          <Route path="/idrp/:id/audit" element={<AuditView />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/documentation" element={<Documentation />} />

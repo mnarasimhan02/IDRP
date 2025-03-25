@@ -383,17 +383,19 @@ function IDRPView() {
                         </IconButton>
                       </Tooltip>
                       
-                      {idrp.status !== 'In-Review' && idrp.status !== 'Approved' && (
-                        <Tooltip title="Edit IDRP">
+                      <Tooltip title={idrp.status === 'In-Review' || idrp.status === 'Approved' ? 
+                        "Editing not allowed in this status" : "Edit IDRP"}>
+                        <span>
                           <IconButton 
                             size="small" 
-                            color="secondary"
+                            color="default"
                             onClick={() => navigate(`/idrp/${idrp.id}/edit`)}
+                            disabled={idrp.status === 'In-Review' || idrp.status === 'Approved'}
                           >
                             <EditIcon fontSize="small" />
                           </IconButton>
-                        </Tooltip>
-                      )}
+                        </span>
+                      </Tooltip>
                       
                       <Tooltip title="More Actions">
                         <IconButton

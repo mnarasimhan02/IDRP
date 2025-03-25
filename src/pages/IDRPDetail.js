@@ -72,315 +72,12 @@ import DescriptionIcon from '@mui/icons-material/Description';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import InfoIcon from '@mui/icons-material/Info';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import AssessmentIcon from '@mui/icons-material/Assessment';
 import { toast } from 'react-toastify';
+import { populateCurrentIDRP } from '../utils';
 
-// Mock data for IDRP details
-const mockIDRPs = {
-  'IDRP-001': {
-    id: 'IDRP-001',
-    studyName: 'STUDY-001',
-    studyId: 'XYZ-123-P2',
-    therapeutic: 'Oncology',
-    indication: 'Breast Cancer',
-    phase: 'Phase 2',
-    status: 'Approved',
-    lastUpdated: '2025-03-15',
-    createdBy: 'John Doe',
-    createdDate: '2025-03-10',
-    description: 'Phase 2 study for investigational compound XYZ-123 in adult patients with condition ABC.',
-    version: '1.0',
-    checks: [
-      {
-        id: 'CHECK-001',
-        checkType: 'DQ',
-        checkCategory: 'Demographics',
-        dataCategory: 'Subject',
-        visit: 'All',
-        description: 'Check for missing date of birth',
-        queryText: 'Identify all subjects with missing DOB',
-        roles: ['DM', 'MM'],
-        frequency: 'Daily',
-        source: 'Library'
-      },
-      {
-        id: 'CHECK-002',
-        checkType: 'DQ',
-        checkCategory: 'Demographics',
-        dataCategory: 'Subject',
-        visit: 'Screening',
-        description: 'Check for age outliers',
-        queryText: 'Identify subjects with age < 18 or > 80',
-        roles: ['DM', 'MM'],
-        frequency: 'Weekly',
-        source: 'Library'
-      },
-      {
-        id: 'CHECK-003',
-        checkType: 'DQ',
-        checkCategory: 'Vitals',
-        dataCategory: 'Safety',
-        visit: 'All',
-        description: 'Check for missing vital signs',
-        queryText: 'Identify visits with incomplete vital measurements',
-        roles: ['DM'],
-        frequency: 'Daily',
-        source: 'Library'
-      },
-      {
-        id: 'CHECK-004',
-        checkType: 'IRL',
-        checkCategory: 'Labs',
-        dataCategory: 'Safety',
-        visit: 'All',
-        description: 'Check for out-of-range lab values',
-        queryText: 'Identify lab values outside of 3 standard deviations',
-        roles: ['DM', 'MM', 'SR'],
-        frequency: 'Daily',
-        source: 'Library'
-      },
-      {
-        id: 'CHECK-005',
-        checkType: 'DQ',
-        checkCategory: 'Adverse Events',
-        dataCategory: 'Safety',
-        visit: 'All',
-        description: 'Check for AEs without resolution date',
-        queryText: 'Identify ongoing AEs without explanation',
-        roles: ['DM', 'SR'],
-        frequency: 'Daily',
-        source: 'Library'
-      }
-    ],
-    comments: [
-      {
-        id: 1,
-        user: 'Jane Smith',
-        role: 'MM',
-        date: '2025-03-16',
-        text: 'Please add a check for concomitant medications',
-        checkId: null
-      },
-      {
-        id: 2,
-        user: 'John Doe',
-        role: 'DM',
-        date: '2025-03-17',
-        text: 'I will add that check today',
-        checkId: null
-      },
-      {
-        id: 3,
-        user: 'Sarah Johnson',
-        role: 'SR',
-        date: '2025-03-17',
-        text: 'We need more detailed checks for safety data',
-        checkId: 'CHECK-001'
-      }
-    ],
-    history: [
-      {
-        date: '2025-03-10',
-        user: 'John Doe',
-        action: 'Created IDRP',
-        version: '0.1'
-      },
-      {
-        date: '2025-03-12',
-        user: 'John Doe',
-        action: 'Added 3 checks',
-        version: '0.1'
-      },
-      {
-        date: '2025-03-15',
-        user: 'John Doe',
-        action: 'Added 2 more checks',
-        version: '0.1'
-      }
-    ]
-  },
-  'IDRP-002': {
-    id: 'IDRP-002',
-    studyName: 'STUDY-002',
-    studyId: 'ABC-789-P3',
-    therapeutic: 'Neurology',
-    indication: 'Alzheimer\'s',
-    phase: 'Phase 3',
-    status: 'In-Review',
-    lastUpdated: '2025-03-10',
-    createdBy: 'Jane Smith',
-    createdDate: '2025-03-01',
-    description: 'Phase 3 study for approved compound ABC-789 in pediatric patients with condition XYZ.',
-    version: '0.2',
-    checks: [
-      {
-        id: 'CHECK-101',
-        checkType: 'DQ',
-        checkCategory: 'Demographics',
-        dataCategory: 'Subject',
-        visit: 'Screening',
-        description: 'Check for missing date of birth',
-        queryText: 'Identify all subjects with missing DOB',
-        roles: ['DM', 'MM'],
-        frequency: 'Daily',
-        source: 'Library'
-      },
-      {
-        id: 'CHECK-102',
-        checkType: 'DQ',
-        checkCategory: 'Concomitant Medications',
-        dataCategory: 'Safety',
-        visit: 'All',
-        description: 'Check for prohibited medications',
-        queryText: 'Identify subjects taking medications from prohibited list',
-        roles: ['DM', 'MM'],
-        frequency: 'Daily',
-        source: 'Similar Study'
-      }
-    ],
-    comments: [
-      {
-        id: 1,
-        user: 'Michael Brown',
-        role: 'SM',
-        date: '2025-03-11',
-        text: 'The enrollment dashboard looks good',
-        checkId: null
-      },
-      {
-        id: 2,
-        user: 'Lisa Chen',
-        role: 'MM',
-        date: '2025-03-12',
-        text: 'We should add more detailed lab value checks',
-        checkId: 'CHECK-101'
-      }
-    ],
-    history: [
-      {
-        date: '2025-03-01',
-        user: 'Jane Smith',
-        action: 'Created IDRP',
-        version: '0.1'
-      },
-      {
-        date: '2025-03-05',
-        user: 'Jane Smith',
-        action: 'Added 2 checks',
-        version: '0.1'
-      },
-      {
-        date: '2025-03-10',
-        user: 'Jane Smith',
-        action: 'Submitted for review',
-        version: '0.2'
-      }
-    ]
-  },
-  'IDRP-003': {
-    id: 'IDRP-003',
-    studyName: 'STUDY-003',
-    studyId: 'DEF-456-P1',
-    therapeutic: 'Infectious Disease',
-    indication: 'COVID-19',
-    phase: 'Phase 1',
-    status: 'Approved',
-    lastUpdated: '2025-02-28',
-    createdBy: 'Robert Johnson',
-    createdDate: '2025-02-10',
-    description: 'Phase 1 study for investigational compound DEF-456 in healthy volunteers.',
-    version: '1.0',
-    checks: [
-      {
-        id: 'CHECK-201',
-        checkType: 'DQ',
-        checkCategory: 'Demographics',
-        dataCategory: 'Subject',
-        visit: 'Screening',
-        description: 'Check for missing date of birth',
-        queryText: 'Identify all subjects with missing DOB',
-        roles: ['DM', 'MM'],
-        frequency: 'Daily',
-        source: 'Library'
-      },
-      {
-        id: 'CHECK-202',
-        checkType: 'Dashboard',
-        checkCategory: 'Vitals',
-        dataCategory: 'Safety',
-        visit: 'All',
-        description: 'Check for abnormal vital signs',
-        queryText: 'Identify subjects with abnormal vital signs',
-        roles: ['DM', 'MM', 'SR'],
-        frequency: 'Daily',
-        source: 'Library'
-      },
-      {
-        id: 'CHECK-203',
-        checkType: 'IRL',
-        checkCategory: 'Labs',
-        dataCategory: 'Safety',
-        visit: 'All',
-        description: 'Check for abnormal lab values',
-        queryText: 'Identify subjects with abnormal lab values',
-        roles: ['DM', 'MM', 'SR'],
-        frequency: 'Daily',
-        source: 'Library'
-      }
-    ],
-    comments: [
-      {
-        id: 1,
-        user: 'Robert Wilson',
-        role: 'MM',
-        date: '2025-02-20',
-        text: 'All checks look appropriate for this study',
-        checkId: null
-      },
-      {
-        id: 2,
-        user: 'Emily Davis',
-        role: 'SR',
-        date: '2025-02-22',
-        text: 'The vital signs monitoring check is well defined',
-        checkId: 'CHECK-202'
-      },
-      {
-        id: 3,
-        user: 'David Martinez',
-        role: 'SM',
-        date: '2025-02-25',
-        text: 'Approved for implementation',
-        checkId: null
-      }
-    ],
-    history: [
-      {
-        date: '2025-02-10',
-        user: 'Robert Johnson',
-        action: 'Created IDRP',
-        version: '0.1'
-      },
-      {
-        date: '2025-02-15',
-        user: 'Robert Johnson',
-        action: 'Added 3 checks',
-        version: '0.1'
-      },
-      {
-        date: '2025-02-20',
-        user: 'Robert Johnson',
-        action: 'Submitted for review',
-        version: '0.2'
-      },
-      {
-        date: '2025-02-28',
-        user: 'Sarah Williams',
-        action: 'Approved IDRP',
-        version: '1.0'
-      }
-    ]
-  }
-};
+// Empty mock data - no pre-populated IDRPs
+const mockIDRPs = {};
 
 // Role colors for avatars
 const roleColors = {
@@ -470,15 +167,17 @@ function IDRPDetail({ isEditing = false }) {
   const [statusChangeDialogOpen, setStatusChangeDialogOpen] = useState(false);
 
   useEffect(() => {
-    // In a real app, this would fetch from an API
-    const idrpData = mockIDRPs[id] || mockIDRPs['IDRP-001']; // Default to first IDRP if ID not found
+    // Find the IDRP data for this ID
+    const idrpData = mockIDRPs[id] || { id, studyId: id, studyName: 'Unknown Study', status: 'Draft', version: '0.1', checks: [], comments: [] };
     
-    // Check if we have this IDRP in localStorage
+    // Try to load from localStorage
     try {
       const storedIDRPs = JSON.parse(localStorage.getItem('idrps') || '[]');
       const storedIDRP = storedIDRPs.find(idrp => idrp.id === id);
       
       if (storedIDRP) {
+        // Populate the IDRP with history entries if needed
+        populateCurrentIDRP(id);
         setCurrentIDRP(storedIDRP);
       } else {
         setCurrentIDRP(idrpData);
@@ -504,6 +203,25 @@ function IDRPDetail({ isEditing = false }) {
 
   const handleMenuClose = () => {
     setMenuAnchorEl(null);
+  };
+
+  // Helper function to create a timestamp in a readable format
+  const createTimestamp = () => {
+    const now = new Date();
+    return now.toISOString().replace('T', ' ').substring(0, 19);
+  };
+
+  // Create audit entry with detailed information
+  const createAuditEntry = (actionType, action, previousValue = null, currentValue = null) => {
+    return {
+      timestamp: createTimestamp(),
+      user: 'Current User', // In a real app, this would be the logged-in user
+      actionType, // status_change, check_add, check_edit, check_delete, comment_add, version_create
+      action,
+      previousValue: previousValue !== null ? String(previousValue) : null,
+      currentValue: currentValue !== null ? String(currentValue) : null,
+      version: currentIDRP.version
+    };
   };
 
   const handleAddCheckDialogOpen = () => {
@@ -534,29 +252,44 @@ function IDRPDetail({ isEditing = false }) {
   };
 
   const handleAddCheck = () => {
-    // Create a new check ID
-    const checkCount = currentIDRP.checks && currentIDRP.checks.length ? currentIDRP.checks.length : 0;
-    const newCheckId = `CHECK-${checkCount + 1}`;
-    
-    // Create the new check object
+    // Validate required fields
+    if (!newCheckData.checkType || !newCheckData.checkCategory || !newCheckData.dataCategory) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+
+    // Create a new check object
     const newCheck = {
-      id: newCheckId,
+      id: `check-${Date.now()}`,
       ...newCheckData
     };
     
     // Update IDRP with new check
     const updatedIDRP = {
       ...currentIDRP,
-      checks: [...currentIDRP.checks, newCheck],
+      checks: [...(currentIDRP.checks || []), newCheck],
       lastUpdated: new Date().toISOString().split('T')[0],
       history: [
-        ...currentIDRP.history,
+        ...(currentIDRP.history || []),
         {
           date: new Date().toISOString().split('T')[0],
           user: 'Current User', // In a real app, this would be the logged-in user
-          action: `Added check ${newCheckId}`,
+          action: `Added check ${newCheck.id}`,
           version: currentIDRP.version
         }
+      ],
+      audit: [
+        ...(currentIDRP.audit || []),
+        createAuditEntry(
+          'check_add',
+          `Added check ${newCheck.id}`,
+          null,
+          JSON.stringify({
+            checkType: newCheck.checkType,
+            checkCategory: newCheck.checkCategory,
+            description: newCheck.description
+          })
+        )
       ]
     };
 
@@ -604,18 +337,22 @@ function IDRPDetail({ isEditing = false }) {
   };
 
   const handleAddComment = () => {
-    if (!newComment.trim()) return;
+    if (!newComment.trim()) {
+      toast.error('Comment cannot be empty');
+      return;
+    }
 
-    // Create a new comment object
+    // Create new comment object
     const newCommentObj = {
       id: `comment-${Date.now()}`,
       checkId: selectedCheckForComment,
       user: 'Current User', // In a real app, this would be the logged-in user
-      role: 'DM', // In a real app, this would be the user's role
+      role: 'Data Manager', // In a real app, this would be the user's role
       text: newComment,
-      date: new Date().toISOString().split('T')[0]
+      timestamp: new Date().toISOString(),
+      replies: []
     };
-    
+
     // Update IDRP with new comment
     const updatedIDRP = {
       ...currentIDRP,
@@ -629,6 +366,15 @@ function IDRPDetail({ isEditing = false }) {
           action: `Added comment ${selectedCheckForComment ? `to check ${selectedCheckForComment}` : 'to IDRP'}`,
           version: currentIDRP.version
         }
+      ],
+      audit: [
+        ...(currentIDRP.audit || []),
+        createAuditEntry(
+          'comment_add',
+          `Added comment ${selectedCheckForComment ? `to check ${selectedCheckForComment}` : 'to IDRP'}`,
+          null,
+          newComment
+        )
       ]
     };
 
@@ -672,38 +418,37 @@ function IDRPDetail({ isEditing = false }) {
 
   const handleCreateNewVersion = () => {
     if (currentIDRP.status !== 'Approved') {
-      toast.error('Can only create a new version from an approved IDRP');
+      toast.error('Only approved IDRPs can have new versions created');
       return;
     }
     
-    setNewVersionDialogOpen(true);
-  };
-
-  const handleConfirmNewVersion = () => {
-    if (currentIDRP.status !== 'Approved') {
-      toast.error('Can only create a new version from an approved IDRP');
-      return;
-    }
-
     // Parse current version and increment major version
     const currentVersion = parseFloat(currentIDRP.version);
-    const majorVersion = Math.floor(currentVersion);
-    const newVersion = (majorVersion + 1).toFixed(1);
+    const newVersion = Math.floor(currentVersion) + 1 + '.0';
     
-    // Create a new version with Draft status
-    const updatedIDRP = {
+    // Create a new IDRP with incremented version
+    const newVersionIDRP = {
       ...currentIDRP,
-      status: 'Draft',
       version: newVersion,
+      status: 'Draft',
       lastUpdated: new Date().toISOString().split('T')[0],
       history: [
-        ...currentIDRP.history,
+        ...(currentIDRP.history || []),
         {
           date: new Date().toISOString().split('T')[0],
           user: 'Current User', // In a real app, this would be the logged-in user
           action: `Created new version ${newVersion} from version ${currentIDRP.version}`,
           version: newVersion
         }
+      ],
+      audit: [
+        ...(currentIDRP.audit || []),
+        createAuditEntry(
+          'version_create',
+          `Created new version ${newVersion} from version ${currentIDRP.version}`,
+          currentIDRP.version,
+          newVersion
+        )
       ]
     };
 
@@ -713,21 +458,21 @@ function IDRPDetail({ isEditing = false }) {
       let updatedIDRPs = [];
       
       // Check if this IDRP already exists in localStorage
-      if (storedIDRPs.some(idrp => idrp.id === updatedIDRP.id)) {
+      if (storedIDRPs.some(idrp => idrp.id === newVersionIDRP.id)) {
         // Update existing IDRP
         updatedIDRPs = storedIDRPs.map(idrp => 
-          idrp.id === updatedIDRP.id ? updatedIDRP : idrp
+          idrp.id === newVersionIDRP.id ? newVersionIDRP : idrp
         );
       } else {
         // Add new IDRP
-        updatedIDRPs = [...storedIDRPs, updatedIDRP];
+        updatedIDRPs = [...storedIDRPs, newVersionIDRP];
       }
       
       localStorage.setItem('idrps', JSON.stringify(updatedIDRPs));
-      setCurrentIDRP(updatedIDRP);
+      setCurrentIDRP(newVersionIDRP);
       
       // Dispatch a custom event to notify other components of the update
-      window.dispatchEvent(new CustomEvent('idrp-updated', { detail: updatedIDRP }));
+      window.dispatchEvent(new CustomEvent('idrp-updated', { detail: newVersionIDRP }));
       
       // Show success toast
       toast.success(`Created new version ${newVersion} successfully`);
@@ -738,24 +483,50 @@ function IDRPDetail({ isEditing = false }) {
   };
 
   const handleStatusChange = () => {
-    const nextStatus = nextStatusMap[currentIDRP.status];
+    let newStatus = '';
+    
+    // Determine the next status based on current status
+    switch(currentIDRP.status) {
+      case 'Draft':
+        newStatus = 'In-Review';
+        break;
+      case 'In-Review':
+        newStatus = 'Reviewed';
+        break;
+      case 'Reviewed':
+        newStatus = 'Approved';
+        break;
+      default:
+        newStatus = 'Draft';
+    }
+    
+    // Update IDRP with new status
     const updatedIDRP = {
       ...currentIDRP,
-      status: nextStatus,
+      status: newStatus,
       lastUpdated: new Date().toISOString().split('T')[0],
       history: [
-        ...currentIDRP.history,
+        ...(currentIDRP.history || []),
         {
           date: new Date().toISOString().split('T')[0],
           user: 'Current User', // In a real app, this would be the logged-in user
-          action: `Changed status from ${currentIDRP.status} to ${nextStatus}`,
+          action: `Changed status from ${currentIDRP.status} to ${newStatus}`,
           version: currentIDRP.version
         }
+      ],
+      audit: [
+        ...(currentIDRP.audit || []),
+        createAuditEntry(
+          'status_change',
+          `Changed status from ${currentIDRP.status} to ${newStatus}`,
+          currentIDRP.status,
+          newStatus
+        )
       ]
     };
 
     // If moving to Approved, update version
-    if (nextStatus === 'Approved') {
+    if (newStatus === 'Approved') {
       // Parse current version and increment major version
       const currentVersion = parseFloat(currentIDRP.version);
       const majorVersion = Math.floor(currentVersion);
@@ -793,10 +564,10 @@ function IDRPDetail({ isEditing = false }) {
       window.dispatchEvent(new CustomEvent('idrp-updated', { detail: updatedIDRP }));
       
       // Show success toast
-      if (nextStatus === 'Approved') {
+      if (newStatus === 'Approved') {
         toast.success(`IDRP approved and version updated to ${updatedIDRP.version}`);
       } else {
-        toast.success(`Status changed to ${nextStatus}`);
+        toast.success(`Status changed to ${newStatus}`);
       }
     } catch (error) {
       console.error('Error saving IDRP to localStorage:', error);
@@ -870,22 +641,42 @@ function IDRPDetail({ isEditing = false }) {
 
   const handleDeleteCheck = () => {
     if (!checkToDelete) return;
-
-    // Create updated IDRP with check removed
-    const updatedChecks = currentIDRP.checks.filter(c => c.id !== checkToDelete.id);
     
+    // Find the check to delete to capture its data for the audit
+    const checkToBeDeleted = currentIDRP.checks.find(check => check.id === checkToDelete);
+    
+    if (!checkToBeDeleted) {
+      toast.error('Check not found');
+      handleDeleteCheckDialogClose();
+      return;
+    }
+    
+    // Create updated IDRP without the deleted check
     const updatedIDRP = {
       ...currentIDRP,
-      checks: updatedChecks,
+      checks: currentIDRP.checks.filter(check => check.id !== checkToDelete),
       lastUpdated: new Date().toISOString().split('T')[0],
       history: [
-        ...currentIDRP.history,
+        ...(currentIDRP.history || []),
         {
           date: new Date().toISOString().split('T')[0],
           user: 'Current User', // In a real app, this would be the logged-in user
-          action: `Deleted check ${checkToDelete.id}`,
+          action: `Deleted check ${checkToDelete}`,
           version: currentIDRP.version
         }
+      ],
+      audit: [
+        ...(currentIDRP.audit || []),
+        createAuditEntry(
+          'check_delete',
+          `Deleted check ${checkToDelete}`,
+          JSON.stringify({
+            checkType: checkToBeDeleted.checkType,
+            checkCategory: checkToBeDeleted.checkCategory,
+            description: checkToBeDeleted.description
+          }),
+          null
+        )
       ]
     };
 
@@ -917,26 +708,54 @@ function IDRPDetail({ isEditing = false }) {
     handleDeleteCheckDialogClose();
   };
 
-  const handleSaveEditedCheck = (editedCheck) => {
-    if (!currentEditCheck) return;
-
-    // Create updated IDRP with edited check
-    const updatedChecks = currentIDRP.checks.map(c => 
-      c.id === currentEditCheck.id ? { ...c, ...editedCheck } : c
-    );
+  const handleSaveEditedCheck = () => {
+    // Find the check to edit
+    const checkIndex = currentIDRP.checks.findIndex(check => check.id === currentEditCheck?.id);
     
+    if (checkIndex === -1) {
+      toast.error('Check not found');
+      return;
+    }
+    
+    const originalCheck = currentIDRP.checks[checkIndex];
+    
+    // Create updated checks array
+    const updatedChecks = [...currentIDRP.checks];
+    updatedChecks[checkIndex] = {
+      ...originalCheck,
+      ...editedCheckData
+    };
+    
+    // Update IDRP with edited check
     const updatedIDRP = {
       ...currentIDRP,
       checks: updatedChecks,
       lastUpdated: new Date().toISOString().split('T')[0],
       history: [
-        ...currentIDRP.history,
+        ...(currentIDRP.history || []),
         {
           date: new Date().toISOString().split('T')[0],
           user: 'Current User', // In a real app, this would be the logged-in user
-          action: `Edited check ${currentEditCheck.id}`,
+          action: `Edited check ${currentEditCheck?.id}`,
           version: currentIDRP.version
         }
+      ],
+      audit: [
+        ...(currentIDRP.audit || []),
+        createAuditEntry(
+          'check_edit',
+          `Edited check ${currentEditCheck?.id}`,
+          JSON.stringify({
+            checkType: originalCheck.checkType,
+            checkCategory: originalCheck.checkCategory,
+            description: originalCheck.description
+          }),
+          JSON.stringify({
+            checkType: editedCheckData.checkType || originalCheck.checkType,
+            checkCategory: editedCheckData.checkCategory || originalCheck.checkCategory,
+            description: editedCheckData.description || originalCheck.description
+          })
+        )
       ]
     };
 
@@ -1060,13 +879,9 @@ function IDRPDetail({ isEditing = false }) {
               <EditIcon fontSize="small" sx={{ mr: 1 }} />
               Edit IDRP
             </MenuItem>
-            <MenuItem onClick={() => { handleMenuClose(); }}>
+            <MenuItem component={RouterLink} to={`/idrp/${id}/audit`} onClick={handleMenuClose}>
               <HistoryIcon fontSize="small" sx={{ mr: 1 }} />
               View History
-            </MenuItem>
-            <MenuItem onClick={() => { handleMenuClose(); }} disabled={currentIDRP.status === 'Approved'}>
-              <CloudUploadIcon fontSize="small" sx={{ mr: 1 }} />
-              Push to Veeva
             </MenuItem>
             <MenuItem onClick={() => { handleCreateNewVersion(); handleMenuClose(); }} disabled={currentIDRP.status !== 'Approved'}>
               <AddIcon fontSize="small" sx={{ mr: 1 }} />
@@ -1210,7 +1025,7 @@ function IDRPDetail({ isEditing = false }) {
                   }
                 </Box>
                 
-                <Typography variant="body2" sx={{ mt: 2 }}>
+                <Typography variant="body2" paragraph>
                   Check Types:
                 </Typography>
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
@@ -1228,7 +1043,7 @@ function IDRPDetail({ isEditing = false }) {
                   }
                 </Box>
                 
-                <Typography variant="body2" sx={{ mt: 2 }}>
+                <Typography variant="body2" paragraph>
                   Data Categories:
                 </Typography>
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
@@ -1246,7 +1061,7 @@ function IDRPDetail({ isEditing = false }) {
                   }
                 </Box>
                 
-                <Typography variant="body2" sx={{ mt: 2 }}>
+                <Typography variant="body2" paragraph>
                   Roles involved:
                 </Typography>
                 <Box sx={{ mt: 1 }}>
@@ -1270,11 +1085,11 @@ function IDRPDetail({ isEditing = false }) {
                   }
                 </Box>
                 
-                <Typography variant="body2" sx={{ mt: 2 }}>
+                <Typography variant="body2" paragraph>
                   Version: <Chip label={currentIDRP?.version || '0.1'} size="small" color="success" />
                 </Typography>
                 
-                <Typography variant="body2" sx={{ mt: 2 }}>
+                <Typography variant="body2" paragraph>
                   Status: <Chip 
                     label={currentIDRP?.status || 'Draft'} 
                     size="small" 
@@ -1666,15 +1481,15 @@ function IDRPDetail({ isEditing = false }) {
             >
               <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
                 <InfoIcon sx={{ mr: 1, verticalAlign: 'middle', color: 'primary.main' }} />
-                Recommendations and Check Management
+                Using iDRP Assist
               </Typography>
             </AccordionSummary>
             <AccordionDetails>
               <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1, color: 'primary.main' }}>
-                Using AI Recommendations
+                Using iDRP Assist Recommendations
               </Typography>
               <Typography variant="body2" paragraph>
-                The IDRP system provides two types of AI-driven recommendations:
+                The IDRP system provides two types of iDRP Assist-driven recommendations:
               </Typography>
               <Box sx={{ ml: 2, mb: 2 }}>
                 <Typography variant="body2" paragraph>

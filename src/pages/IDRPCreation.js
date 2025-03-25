@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -51,177 +51,57 @@ import {
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import AddIcon from '@mui/icons-material/Add';
+import DeleteIcon from '@mui/icons-material/Delete';
+import SearchIcon from '@mui/icons-material/Search';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import AssignmentIcon from '@mui/icons-material/Assignment';
+import PeopleIcon from '@mui/icons-material/People';
 import InfoIcon from '@mui/icons-material/Info';
 import OpenInFullIcon from '@mui/icons-material/OpenInFull';
 import CloseIcon from '@mui/icons-material/Close';
-import SearchIcon from '@mui/icons-material/Search';
-import AddIcon from '@mui/icons-material/Add';
-import DeleteIcon from '@mui/icons-material/Delete';
-import AssignmentIcon from '@mui/icons-material/Assignment';
-import ScienceIcon from '@mui/icons-material/Science';
-import DescriptionIcon from '@mui/icons-material/Description';
-import BiotechIcon from '@mui/icons-material/Biotech';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
 import VerifiedIcon from '@mui/icons-material/Verified';
-import LocalHospitalIcon from '@mui/icons-material/LocalHospital';
-import PeopleIcon from '@mui/icons-material/People';
-import RateReviewIcon from '@mui/icons-material/RateReview';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import RefreshIcon from '@mui/icons-material/Refresh'; // Make sure the import is correct
+import { readExcelFile, mapExcelDataToChecks } from '../utils/excelUtils';
 
-// Mock data for AI recommendations
-const mockLibraryChecks = [
-  {
-    id: 'LIB-001',
-    checkType: 'DQ',
-    checkCategory: 'Demographics',
-    dataCategory: 'Subject',
-    visit: 'All',
-    description: 'Check for missing date of birth',
-    queryText: 'Identify all subjects with missing DOB',
-    roles: ['DM', 'MM'],
-    frequency: 'Daily',
-    source: 'Library',
-    confidence: 95
-  },
-  {
-    id: 'LIB-002',
-    checkType: 'DQ',
-    checkCategory: 'Demographics',
-    dataCategory: 'Subject',
-    visit: 'Screening',
-    description: 'Check for age outliers',
-    queryText: 'Identify subjects with age < 18 or > 80',
-    roles: ['DM', 'MM'],
-    frequency: 'Weekly',
-    source: 'Library',
-    confidence: 92
-  },
-  {
-    id: 'LIB-003',
-    checkType: 'DQ',
-    checkCategory: 'Vitals',
-    dataCategory: 'Safety',
-    visit: 'All',
-    description: 'Check for missing vital signs',
-    queryText: 'Identify visits with incomplete vital measurements',
-    roles: ['DM', 'SR'],
-    frequency: 'Daily',
-    source: 'Library',
-    confidence: 88
-  },
-  {
-    id: 'LIB-004',
-    checkType: 'IRL',
-    checkCategory: 'Labs',
-    dataCategory: 'Safety',
-    visit: 'All',
-    description: 'Check for out-of-range lab values',
-    queryText: 'Identify lab values outside of 3 standard deviations',
-    roles: ['DM', 'MM', 'SR'],
-    frequency: 'Daily',
-    source: 'Library',
-    confidence: 90
-  },
-  {
-    id: 'LIB-005',
-    checkType: 'Dashboard',
-    checkCategory: 'Adverse Events',
-    dataCategory: 'Safety',
-    visit: 'All',
-    description: 'Check for AEs without resolution date',
-    queryText: 'Identify ongoing AEs without explanation',
-    roles: ['DM', 'SR'],
-    frequency: 'Daily',
-    source: 'Library',
-    confidence: 94
-  }
-];
+// Empty arrays for checks
+const mockLibraryChecks = [];
+const mockSimilarStudyChecks = [];
 
-const mockSimilarStudyChecks = [
-  {
-    id: 'SIM-001',
-    checkType: 'DQ',
-    checkCategory: 'Concomitant Medications',
-    dataCategory: 'Safety',
-    visit: 'All',
-    description: 'Check for prohibited medications',
-    queryText: 'Identify subjects taking medications from prohibited list',
-    roles: ['DM', 'MM'],
-    frequency: 'Weekly',
-    source: 'Similar Study',
-    similarStudy: 'STUDY-XYZ',
-    confidence: 85
-  },
-  {
-    id: 'SIM-002',
-    checkType: 'IRL',
-    checkCategory: 'Protocol Deviations',
-    dataCategory: 'Compliance',
-    visit: 'Screening',
-    description: 'Check for inclusion/exclusion violations',
-    queryText: 'Identify subjects not meeting key I/E criteria',
-    roles: ['DM', 'MM', 'SM'],
-    frequency: 'Weekly',
-    source: 'Similar Study',
-    similarStudy: 'STUDY-ABC',
-    confidence: 82
-  },
-  {
-    id: 'SIM-003',
-    checkType: 'Dashboard',
-    checkCategory: 'Efficacy',
-    dataCategory: 'Efficacy',
-    visit: 'All',
-    description: 'Check for missing primary endpoint data',
-    queryText: 'Identify subjects missing primary outcome measure',
-    roles: ['DM', 'MM', 'SR'],
-    frequency: 'Daily',
-    source: 'Similar Study',
-    similarStudy: 'STUDY-DEF',
-    confidence: 78
-  }
-];
-
-// Mock data for studies
+// Pre-populated mock studies
 const mockStudies = [
   {
-    studyId: 'STUDY-001',
-    studyName: 'Phase 3 Breast Cancer Study',
-    description: 'A randomized, double-blind, placebo-controlled study evaluating the efficacy and safety of Drug X in patients with metastatic breast cancer.',
-    phase: 'Phase 3',
-    therapeutic: 'Oncology',
-    indication: 'Breast Cancer',
-    population: 'Adult'
-  },
-  {
-    studyId: 'STUDY-002',
-    studyName: 'Phase 2 Hypertension Trial',
-    description: 'A multi-center study to evaluate the efficacy of Drug Y in patients with uncontrolled hypertension.',
+    studyId: 'ONCO-2025-001',
+    studyName: 'Phase 2 Study of XDR-592 in Advanced Solid Tumors',
     phase: 'Phase 2',
-    therapeutic: 'Cardiology',
-    indication: 'Hypertension',
-    population: 'Adult'
+    therapeutic: 'Oncology',
+    indication: 'Advanced Solid Tumors',
+    population: 'Adult patients with advanced solid tumors',
+    description: 'A Phase 2, open-label, multi-center study to evaluate the efficacy and safety of XDR-592 in patients with advanced solid tumors who have progressed on standard therapy.'
   },
   {
-    studyId: 'STUDY-003',
-    studyName: 'Phase 1 Alzheimer\'s Study',
-    description: 'First-in-human study to assess the safety, tolerability, and pharmacokinetics of Drug Z in patients with early Alzheimer\'s disease.',
-    phase: 'Phase 1',
-    therapeutic: 'Neurology',
-    indication: 'Alzheimer\'s',
-    population: 'Geriatric'
-  },
-  {
-    studyId: 'STUDY-004',
-    studyName: 'Phase 3 COVID-19 Vaccine Trial',
-    description: 'A large-scale clinical trial to evaluate the efficacy and safety of Vaccine A against COVID-19 infection.',
+    studyId: 'CARD-2025-002',
+    studyName: 'Phase 3 Study of CardioPlus in Heart Failure',
     phase: 'Phase 3',
-    therapeutic: 'Infectious Disease',
-    indication: 'COVID-19',
-    population: 'Mixed'
+    therapeutic: 'Cardiology',
+    indication: 'Heart Failure',
+    population: 'Adult patients with chronic heart failure',
+    description: 'A Phase 3, randomized, double-blind, placebo-controlled study to evaluate the efficacy and safety of CardioPlus in reducing cardiovascular mortality and heart failure hospitalizations.'
+  },
+  {
+    studyId: 'NEUR-2025-003',
+    studyName: 'Phase 2 Study of NeuroClear in Alzheimer\'s Disease',
+    phase: 'Phase 2',
+    therapeutic: 'Neurology',
+    indication: 'Alzheimer\'s Disease',
+    population: 'Elderly patients with mild to moderate Alzheimer\'s Disease',
+    description: 'A Phase 2, randomized, double-blind, placebo-controlled study to evaluate the efficacy and safety of NeuroClear in slowing cognitive decline in patients with Alzheimer\'s Disease.'
   }
 ];
 
-const steps = ['Study Information', 'AI Recommendations', 'Review & Finalize'];
+const steps = ['Study Information', 'iDRP Assist', 'Review & Finalize'];
 
 // Custom styled components for the stepper
 const ColorlibConnector = styled(StepConnector)(({ theme }) => ({
@@ -317,6 +197,21 @@ function IDRPCreation() {
       frequency: ''
     }
   ]);
+  
+  // List of team members for role assignments
+  const teamMembers = [
+    'John Smith',
+    'Sarah Johnson',
+    'Michael Chen',
+    'Emily Davis',
+    'David Wilson',
+    'Jennifer Lee',
+    'Robert Brown',
+    'Lisa Taylor',
+    'James Anderson',
+    'Maria Rodriguez'
+  ];
+  
   const [showCustomCheckForm, setShowCustomCheckForm] = useState(false);
   const [libraryPage, setLibraryPage] = useState(0);
   const [similarStudiesPage, setSimilarStudiesPage] = useState(0);
@@ -327,10 +222,78 @@ function IDRPCreation() {
   const [similarStudiesDialogOpen, setSimilarStudiesDialogOpen] = useState(false);
   const [expandedSearchTerm, setExpandedSearchTerm] = useState('');
   const [expandedFilterType, setExpandedFilterType] = useState('');
-  const [expandedRowsPerPage, setExpandedRowsPerPage] = useState(10);
+  const [expandedFilterCategory, setExpandedFilterCategory] = useState('');
+  const [expandedFilterDataCategory, setExpandedFilterDataCategory] = useState('');
   const [expandedLibraryPage, setExpandedLibraryPage] = useState(0);
   const [expandedSimilarStudiesPage, setExpandedSimilarStudiesPage] = useState(0);
-
+  const [librarySearchTerm, setLibrarySearchTerm] = useState('');
+  const [libraryFilterType, setLibraryFilterType] = useState('');
+  const [libraryFilterCategory, setLibraryFilterCategory] = useState('');
+  const [libraryFilterDataCategory, setLibraryFilterDataCategory] = useState('');
+  
+  // Excel import related states
+  const [importedChecks, setImportedChecks] = useState([]);
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef(null);
+  
+  // Load global library checks from localStorage
+  const [globalLibraryChecks, setGlobalLibraryChecks] = useState(() => {
+    try {
+      const savedChecks = localStorage.getItem('globalLibraryChecks');
+      return savedChecks ? JSON.parse(savedChecks) : [];
+    } catch (error) {
+      console.error('Error loading global library checks:', error);
+      return [];
+    }
+  });
+  
+  // Function to handle Excel file import
+  const handleExcelImport = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    try {
+      setIsImporting(true);
+      const jsonData = await readExcelFile(file);
+      const formattedChecks = mapExcelDataToChecks(jsonData);
+      
+      // Add source and confidence properties to each check
+      const checksWithMetadata = formattedChecks.map(check => ({
+        ...check,
+        source: 'Excel Import',
+        confidence: 85 // Default confidence for imported checks
+      }));
+      
+      setImportedChecks(checksWithMetadata);
+      
+      // Add imported checks to selected checks
+      setSelectedChecks(prevChecks => {
+        // Filter out duplicates based on ID
+        const existingIds = prevChecks.map(check => check.id);
+        const newChecks = checksWithMetadata.filter(check => !existingIds.includes(check.id));
+        return [...prevChecks, ...newChecks];
+      });
+      
+      alert(`Successfully imported ${formattedChecks.length} checks from Excel file.`);
+    } catch (error) {
+      console.error('Error importing Excel file:', error);
+      alert(`Error importing Excel file: ${error.message}`);
+    } finally {
+      setIsImporting(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+  
+  // Function to trigger file input click
+  const handleImportButtonClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+  
   const generateMoreMockChecks = (baseChecks, count, prefix) => {
     const result = [...baseChecks];
     const checkTypes = ['DQ', 'IRL', 'Dashboard'];
@@ -377,8 +340,10 @@ function IDRPCreation() {
     return result;
   };
 
-  const expandedLibraryChecks = generateMoreMockChecks(mockLibraryChecks, 500, 'LIB');
-  const expandedSimilarStudyChecks = generateMoreMockChecks(mockSimilarStudyChecks, 500, 'SIM');
+  // Combine global library checks with mock library checks
+  const combinedLibraryChecks = [...globalLibraryChecks];
+  const expandedLibraryChecks = generateMoreMockChecks(combinedLibraryChecks, 0, 'LIB');
+  const expandedSimilarStudyChecks = generateMoreMockChecks(mockSimilarStudyChecks, 0, 'SIM');
 
   const handleNext = () => {
     setActiveStep((prevActiveStep) => prevActiveStep + 1);
@@ -513,22 +478,23 @@ function IDRPCreation() {
     setShowCustomCheckForm(false);
   };
 
-  const filteredLibraryChecks = mockLibraryChecks.filter(check => {
+  // Filter library checks based on search term and filter type
+  const filteredLibraryChecks = combinedLibraryChecks.filter(check => {
     const matchesSearch = searchTerm === '' || 
-      check.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
       check.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      check.checkCategory.toLowerCase().includes(searchTerm.toLowerCase());
+      check.queryText.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      check.id.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesFilter = filterType === '' || check.checkType === filterType;
     
     return matchesSearch && matchesFilter;
   });
-
+  
   const filteredSimilarStudyChecks = mockSimilarStudyChecks.filter(check => {
     const matchesSearch = searchTerm === '' || 
-      check.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
       check.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      check.checkCategory.toLowerCase().includes(searchTerm.toLowerCase());
+      check.queryText.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      check.id.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesFilter = filterType === '' || check.checkType === filterType;
     
@@ -536,25 +502,29 @@ function IDRPCreation() {
   });
 
   const expandedFilteredLibraryChecks = expandedLibraryChecks.filter(check => {
-    const matchesSearch = expandedSearchTerm === '' || 
-      check.id.toLowerCase().includes(expandedSearchTerm.toLowerCase()) ||
-      check.description.toLowerCase().includes(expandedSearchTerm.toLowerCase()) ||
-      check.checkCategory.toLowerCase().includes(expandedSearchTerm.toLowerCase());
+    const matchesSearch = librarySearchTerm === '' || 
+      check.description.toLowerCase().includes(librarySearchTerm.toLowerCase()) ||
+      check.queryText.toLowerCase().includes(librarySearchTerm.toLowerCase()) ||
+      check.id.toLowerCase().includes(librarySearchTerm.toLowerCase());
     
-    const matchesFilter = expandedFilterType === '' || check.checkType === expandedFilterType;
+    const matchesFilterType = libraryFilterType === '' || check.checkType === libraryFilterType;
+    const matchesFilterCategory = libraryFilterCategory === '' || check.checkCategory === libraryFilterCategory;
+    const matchesFilterDataCategory = libraryFilterDataCategory === '' || check.dataCategory === libraryFilterDataCategory;
     
-    return matchesSearch && matchesFilter;
+    return matchesSearch && matchesFilterType && matchesFilterCategory && matchesFilterDataCategory;
   });
 
   const expandedFilteredSimilarStudyChecks = expandedSimilarStudyChecks.filter(check => {
     const matchesSearch = expandedSearchTerm === '' || 
-      check.id.toLowerCase().includes(expandedSearchTerm.toLowerCase()) ||
       check.description.toLowerCase().includes(expandedSearchTerm.toLowerCase()) ||
-      check.checkCategory.toLowerCase().includes(expandedSearchTerm.toLowerCase());
+      check.queryText.toLowerCase().includes(expandedSearchTerm.toLowerCase()) ||
+      check.id.toLowerCase().includes(expandedSearchTerm.toLowerCase());
     
-    const matchesFilter = expandedFilterType === '' || check.checkType === expandedFilterType;
+    const matchesFilterType = expandedFilterType === '' || check.checkType === expandedFilterType;
+    const matchesFilterCategory = expandedFilterCategory === '' || check.checkCategory === expandedFilterCategory;
+    const matchesFilterDataCategory = expandedFilterDataCategory === '' || check.dataCategory === expandedFilterDataCategory;
     
-    return matchesSearch && matchesFilter;
+    return matchesSearch && matchesFilterType && matchesFilterCategory && matchesFilterDataCategory;
   });
 
   const handleLibraryPageChange = (event, newPage) => {
@@ -698,13 +668,18 @@ function IDRPCreation() {
     switch (step) {
       case 0:
         return (
-          <Box sx={{ mt: 4 }}>
+          <Box sx={{ p: 2 }}>
+            <Alert severity="info" sx={{ mb: 3 }}>
+              <AlertTitle>Study Information</AlertTitle>
+              Select a study from the dropdown and assign roles for this IDRP. All study details will be automatically populated.
+            </Alert>
+            
             <Card elevation={3} sx={{ mb: 4, borderRadius: 2, overflow: 'hidden' }}>
               <CardHeader 
                 title={
                   <Box sx={{ display: 'flex', alignItems: 'center' }}>
                     <AssignmentIcon sx={{ mr: 1, color: 'primary.main' }} />
-                    <Typography variant="h6">Study Details</Typography>
+                    <Typography variant="h6">Study Selection</Typography>
                   </Box>
                 }
                 sx={{ 
@@ -715,7 +690,7 @@ function IDRPCreation() {
               />
               <CardContent>
                 <Grid container spacing={3}>
-                  <Grid item xs={12} sm={6}>
+                  <Grid item xs={12}>
                     <FormControl fullWidth required variant="outlined" sx={{ 
                       '& .MuiOutlinedInput-root': {
                         borderRadius: 2,
@@ -730,363 +705,202 @@ function IDRPCreation() {
                     }}>
                       <InputLabel>Study ID</InputLabel>
                       <Select
+                        label="Study ID"
                         name="studyId"
                         value={studyInfo.studyId}
-                        label="Study ID"
                         onChange={handleStudyInfoChange}
-                        startAdornment={
-                          <InputAdornment position="start">
-                            <BiotechIcon color="primary" sx={{ ml: 1 }} />
-                          </InputAdornment>
-                        }
                       >
+                        <MenuItem value="" disabled>Select a Study</MenuItem>
                         {mockStudies.map((study) => (
                           <MenuItem key={study.studyId} value={study.studyId}>
-                            {study.studyId}
+                            {study.studyId} - {study.studyName}
                           </MenuItem>
                         ))}
                       </Select>
                     </FormControl>
                   </Grid>
-                  
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      label="Study Name"
-                      name="studyName"
-                      value={studyInfo.studyName}
-                      InputProps={{
-                        readOnly: true,
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <DescriptionIcon color="primary" />
-                          </InputAdornment>
-                        )
-                      }}
-                      variant="outlined"
-                      sx={{ 
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: 2,
-                          backgroundColor: 'rgba(0, 0, 0, 0.02)'
-                        }
-                      }}
-                    />
-                  </Grid>
-                  
-                  <Grid item xs={12}>
-                    <TextField
-                      fullWidth
-                      label="Study Description"
-                      name="description"
-                      multiline
-                      rows={3}
-                      value={studyInfo.description}
-                      InputProps={{
-                        readOnly: true,
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <InfoIcon color="primary" />
-                          </InputAdornment>
-                        )
-                      }}
-                      variant="outlined"
-                      sx={{ 
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: 2,
-                          backgroundColor: 'rgba(0, 0, 0, 0.02)'
-                        }
-                      }}
-                    />
-                  </Grid>
                 </Grid>
               </CardContent>
             </Card>
 
-            <Card elevation={3} sx={{ mb: 4, borderRadius: 2, overflow: 'hidden' }}>
-              <CardHeader 
-                title={
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <ScienceIcon sx={{ mr: 1, color: 'primary.main' }} />
-                    <Typography variant="h6">Study Classification</Typography>
-                  </Box>
-                }
-                sx={{ 
-                  backgroundColor: 'primary.light', 
-                  color: 'primary.contrastText',
-                  pb: 1
-                }}
-              />
-              <CardContent>
-                <Grid container spacing={3}>
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      label="Study Phase"
-                      name="studyPhase"
-                      value={studyInfo.studyPhase}
-                      InputProps={{
-                        readOnly: true,
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <LocalHospitalIcon color="primary" />
-                          </InputAdornment>
-                        )
-                      }}
-                      variant="outlined"
-                      sx={{ 
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: 2,
-                          backgroundColor: 'rgba(0, 0, 0, 0.02)'
-                        }
-                      }}
-                    />
-                  </Grid>
-                  
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      label="Therapeutic Area"
-                      name="therapeutic"
-                      value={studyInfo.therapeutic}
-                      InputProps={{
-                        readOnly: true,
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <LocalHospitalIcon color="primary" />
-                          </InputAdornment>
-                        )
-                      }}
-                      variant="outlined"
-                      sx={{ 
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: 2,
-                          backgroundColor: 'rgba(0, 0, 0, 0.02)'
-                        }
-                      }}
-                    />
-                  </Grid>
-                  
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      label="Indication"
-                      name="indication"
-                      value={studyInfo.indication}
-                      InputProps={{
-                        readOnly: true,
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <LocalHospitalIcon color="primary" />
-                          </InputAdornment>
-                        )
-                      }}
-                      variant="outlined"
-                      sx={{ 
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: 2,
-                          backgroundColor: 'rgba(0, 0, 0, 0.02)'
-                        }
-                      }}
-                    />
-                  </Grid>
-                  
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      label="Population"
-                      name="population"
-                      value={studyInfo.population}
-                      InputProps={{
-                        readOnly: true,
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <PeopleIcon color="primary" />
-                          </InputAdornment>
-                        )
-                      }}
-                      variant="outlined"
-                      sx={{ 
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: 2,
-                          backgroundColor: 'rgba(0, 0, 0, 0.02)'
-                        }
-                      }}
-                    />
-                  </Grid>
-                </Grid>
-              </CardContent>
-            </Card>
-            
-            <Card elevation={3} sx={{ mb: 4, borderRadius: 2, overflow: 'hidden' }}>
-              <CardHeader 
-                title={
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <PeopleIcon sx={{ mr: 1, color: 'primary.main' }} />
-                    <Typography variant="h6">Role Assignments</Typography>
-                  </Box>
-                }
-                sx={{ 
-                  backgroundColor: 'primary.light', 
-                  color: 'primary.contrastText',
-                  pb: 1
-                }}
-              />
-              <CardContent>
-                <Grid container spacing={3}>
-                  <Grid item xs={12} sm={6}>
-                    <FormControl fullWidth required variant="outlined" sx={{ 
-                      '& .MuiOutlinedInput-root': {
-                        borderRadius: 2,
-                        transition: 'all 0.3s',
-                        '&:hover': {
-                          boxShadow: '0 0 0 2px rgba(33, 150, 243, 0.1)'
-                        },
-                        '&.Mui-focused': {
-                          boxShadow: '0 0 0 3px rgba(33, 150, 243, 0.2)'
-                        }
-                      }
-                    }}>
-                      <InputLabel>Owner (Data Manager)</InputLabel>
-                      <Select
-                        name="owner"
-                        value={studyInfo.owner}
-                        label="Owner (Data Manager)"
-                        onChange={handleStudyInfoChange}
-                        startAdornment={
-                          <InputAdornment position="start">
-                            <Avatar 
-                              sx={{ 
-                                width: 24, 
-                                height: 24, 
-                                bgcolor: 'primary.main',
-                                fontSize: '0.75rem',
-                                ml: 1
-                              }}
-                            >
-                              DM
-                            </Avatar>
-                          </InputAdornment>
-                        }
-                      >
-                        <MenuItem value="John Doe">John Doe</MenuItem>
-                        <MenuItem value="Jane Smith">Jane Smith</MenuItem>
-                        <MenuItem value="Robert Johnson">Robert Johnson</MenuItem>
-                        <MenuItem value="Emily Davis">Emily Davis</MenuItem>
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  
-                  <Grid item xs={12} sm={6}>
-                    <FormControl fullWidth variant="outlined" sx={{ 
-                      '& .MuiOutlinedInput-root': {
-                        borderRadius: 2,
-                        transition: 'all 0.3s',
-                        '&:hover': {
-                          boxShadow: '0 0 0 2px rgba(33, 150, 243, 0.1)'
-                        },
-                        '&.Mui-focused': {
-                          boxShadow: '0 0 0 3px rgba(33, 150, 243, 0.2)'
-                        }
-                      }
-                    }}>
-                      <InputLabel>Reviewers</InputLabel>
-                      <Select
-                        multiple
-                        name="reviewers"
-                        value={studyInfo.reviewers}
-                        label="Reviewers"
-                        onChange={handleMultiSelectChange}
-                        startAdornment={
-                          <InputAdornment position="start">
-                            <RateReviewIcon color="primary" sx={{ ml: 1 }} />
-                          </InputAdornment>
-                        }
-                        renderValue={(selected) => (
-                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                            {selected.map((value) => (
-                              <Chip 
-                                key={value} 
-                                label={value} 
-                                size="small" 
-                                sx={{ 
-                                  borderRadius: '16px',
-                                  backgroundColor: 'primary.light',
-                                  color: 'primary.dark',
-                                  fontWeight: 500
-                                }}
-                              />
+            {studyInfo.studyId && (
+              <>
+                <Card elevation={3} sx={{ mb: 4, borderRadius: 2, overflow: 'hidden' }}>
+                  <CardHeader 
+                    title={
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <InfoIcon sx={{ mr: 1, color: 'primary.main' }} />
+                        <Typography variant="h6">Study Details</Typography>
+                      </Box>
+                    }
+                    sx={{ 
+                      backgroundColor: 'primary.light', 
+                      color: 'primary.contrastText',
+                      pb: 1
+                    }}
+                  />
+                  <CardContent>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} md={6}>
+                        <Typography variant="subtitle2" color="text.secondary">Study Name:</Typography>
+                        <Typography variant="body1" sx={{ mb: 1 }}>{studyInfo.studyName}</Typography>
+                        
+                        <Typography variant="subtitle2" color="text.secondary">Phase:</Typography>
+                        <Typography variant="body1" sx={{ mb: 1 }}>{studyInfo.studyPhase}</Typography>
+                        
+                        <Typography variant="subtitle2" color="text.secondary">Therapeutic Area:</Typography>
+                        <Typography variant="body1" sx={{ mb: 1 }}>{studyInfo.therapeutic}</Typography>
+                      </Grid>
+                      
+                      <Grid item xs={12} md={6}>
+                        <Typography variant="subtitle2" color="text.secondary">Indication:</Typography>
+                        <Typography variant="body1" sx={{ mb: 1 }}>{studyInfo.indication}</Typography>
+                        
+                        <Typography variant="subtitle2" color="text.secondary">Population:</Typography>
+                        <Typography variant="body1" sx={{ mb: 1 }}>{studyInfo.population}</Typography>
+                      </Grid>
+                      
+                      <Grid item xs={12}>
+                        <Typography variant="subtitle2" color="text.secondary">Description:</Typography>
+                        <Typography variant="body1">{studyInfo.description}</Typography>
+                      </Grid>
+                    </Grid>
+                  </CardContent>
+                </Card>
+                
+                <Card elevation={3} sx={{ mb: 4, borderRadius: 2, overflow: 'hidden' }}>
+                  <CardHeader 
+                    title={
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <PeopleIcon sx={{ mr: 1, color: 'primary.main' }} />
+                        <Typography variant="h6">Role Assignments</Typography>
+                      </Box>
+                    }
+                    sx={{ 
+                      backgroundColor: 'primary.light', 
+                      color: 'primary.contrastText',
+                      pb: 1
+                    }}
+                  />
+                  <CardContent>
+                    <Grid container spacing={3}>
+                      <Grid item xs={12} sm={6}>
+                        <FormControl fullWidth required variant="outlined" sx={{ 
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: 2,
+                            transition: 'all 0.3s',
+                            '&:hover': {
+                              boxShadow: '0 0 0 2px rgba(33, 150, 243, 0.1)'
+                            },
+                            '&.Mui-focused': {
+                              boxShadow: '0 0 0 3px rgba(33, 150, 243, 0.2)'
+                            }
+                          }
+                        }}>
+                          <InputLabel>Owner (Data Manager)</InputLabel>
+                          <Select
+                            label="Owner (Data Manager)"
+                            name="owner"
+                            value={studyInfo.owner}
+                            onChange={handleStudyInfoChange}
+                          >
+                            <MenuItem value="" disabled>Select Owner</MenuItem>
+                            {teamMembers.map((member) => (
+                              <MenuItem key={member} value={member}>{member}</MenuItem>
                             ))}
-                          </Box>
-                        )}
-                      >
-                        <MenuItem value="Dr. Michael Chen (MM)">Dr. Michael Chen (MM)</MenuItem>
-                        <MenuItem value="Dr. Sarah Williams (MM)">Dr. Sarah Williams (MM)</MenuItem>
-                        <MenuItem value="Alex Thompson (SR)">Alex Thompson (SR)</MenuItem>
-                        <MenuItem value="Lisa Rodriguez (SR)">Lisa Rodriguez (SR)</MenuItem>
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  
-                  <Grid item xs={12} sm={6}>
-                    <FormControl fullWidth variant="outlined" sx={{ 
-                      '& .MuiOutlinedInput-root': {
-                        borderRadius: 2,
-                        transition: 'all 0.3s',
-                        '&:hover': {
-                          boxShadow: '0 0 0 2px rgba(33, 150, 243, 0.1)'
-                        },
-                        '&.Mui-focused': {
-                          boxShadow: '0 0 0 3px rgba(33, 150, 243, 0.2)'
-                        }
-                      }
-                    }}>
-                      <InputLabel>Approvers</InputLabel>
-                      <Select
-                        multiple
-                        name="approvers"
-                        value={studyInfo.approvers}
-                        label="Approvers"
-                        onChange={handleMultiSelectChange}
-                        startAdornment={
-                          <InputAdornment position="start">
-                            <VerifiedIcon color="primary" sx={{ ml: 1 }} />
-                          </InputAdornment>
-                        }
-                        renderValue={(selected) => (
-                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                            {selected.map((value) => (
-                              <Chip 
-                                key={value} 
-                                label={value} 
-                                size="small" 
-                                sx={{ 
-                                  borderRadius: '16px',
-                                  backgroundColor: 'primary.light',
-                                  color: 'primary.dark',
-                                  fontWeight: 500
-                                }}
-                              />
+                          </Select>
+                        </FormControl>
+                      </Grid>
+                      
+                      <Grid item xs={12} sm={6}>
+                        <FormControl fullWidth required variant="outlined" sx={{ 
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: 2,
+                            transition: 'all 0.3s',
+                            '&:hover': {
+                              boxShadow: '0 0 0 2px rgba(33, 150, 243, 0.1)'
+                            },
+                            '&.Mui-focused': {
+                              boxShadow: '0 0 0 3px rgba(33, 150, 243, 0.2)'
+                            }
+                          }
+                        }}>
+                          <InputLabel>Reviewers</InputLabel>
+                          <Select
+                            multiple
+                            label="Reviewers"
+                            name="reviewers"
+                            value={studyInfo.reviewers}
+                            onChange={handleMultiSelectChange}
+                            renderValue={(selected) => (
+                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                {selected.map((value) => (
+                                  <Chip key={value} label={value} size="small" />
+                                ))}
+                              </Box>
+                            )}
+                          >
+                            {teamMembers.map((member) => (
+                              <MenuItem key={member} value={member}>
+                                <Checkbox checked={studyInfo.reviewers.indexOf(member) > -1} />
+                                <ListItemText primary={member} />
+                              </MenuItem>
                             ))}
-                          </Box>
-                        )}
-                      >
-                        <MenuItem value="Dr. James Wilson (SM)">Dr. James Wilson (SM)</MenuItem>
-                        <MenuItem value="Dr. Patricia Brown (SM)">Dr. Patricia Brown (SM)</MenuItem>
-                        <MenuItem value="Thomas Garcia (DM)">Thomas Garcia (DM)</MenuItem>
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                </Grid>
-              </CardContent>
-            </Card>
+                          </Select>
+                        </FormControl>
+                      </Grid>
+                      
+                      <Grid item xs={12} sm={6}>
+                        <FormControl fullWidth required variant="outlined" sx={{ 
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: 2,
+                            transition: 'all 0.3s',
+                            '&:hover': {
+                              boxShadow: '0 0 0 2px rgba(33, 150, 243, 0.1)'
+                            },
+                            '&.Mui-focused': {
+                              boxShadow: '0 0 0 3px rgba(33, 150, 243, 0.2)'
+                            }
+                          }
+                        }}>
+                          <InputLabel>Approvers</InputLabel>
+                          <Select
+                            multiple
+                            label="Approvers"
+                            name="approvers"
+                            value={studyInfo.approvers}
+                            onChange={handleMultiSelectChange}
+                            renderValue={(selected) => (
+                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                {selected.map((value) => (
+                                  <Chip key={value} label={value} size="small" />
+                                ))}
+                              </Box>
+                            )}
+                          >
+                            {teamMembers.map((member) => (
+                              <MenuItem key={member} value={member}>
+                                <Checkbox checked={studyInfo.approvers.indexOf(member) > -1} />
+                                <ListItemText primary={member} />
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      </Grid>
+                    </Grid>
+                  </CardContent>
+                </Card>
+              </>
+            )}
           </Box>
         );
+      
       case 1:
         return (
           <Box sx={{ mt: 4 }}>
             <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
               <AutoAwesomeIcon sx={{ mr: 1, color: theme.palette.warning.main }} />
-              AI Recommendations
+              iDRP Assist
             </Typography>
             <Typography variant="body2" color="textSecondary" paragraph>
               Based on your study information, our AI has recommended the following data quality checks.
@@ -1136,6 +950,22 @@ function IDRPCreation() {
                         >
                           Maximize
                         </Button>
+                        <Button 
+                          variant="outlined" 
+                          size="small"
+                          onClick={handleImportButtonClick}
+                          startIcon={<UploadFileIcon />}
+                          sx={{ ml: 1 }}
+                        >
+                          Import from Excel
+                        </Button>
+                        <input
+                          type="file"
+                          accept=".xlsx, .xls, .csv"
+                          ref={fileInputRef}
+                          onChange={handleExcelImport}
+                          style={{ display: 'none' }}
+                        />
                       </Box>
                     }
                   />
@@ -1144,7 +974,7 @@ function IDRPCreation() {
                     <Table stickyHeader size="small">
                       <TableHead>
                         <TableRow>
-                          <TableCell padding="checkbox">
+                          <TableCell padding="checkbox" sx={{ bgcolor: 'background.paper', zIndex: 1300 }}>
                             <Checkbox
                               indeterminate={
                                 filteredLibraryChecks
@@ -1177,16 +1007,16 @@ function IDRPCreation() {
                               onChange={handleSelectAllLibraryChecks}
                             />
                           </TableCell>
-                          <TableCell>ID</TableCell>
-                          <TableCell>Check Type</TableCell>
-                          <TableCell>Check Category</TableCell>
-                          <TableCell>Data Category</TableCell>
-                          <TableCell>Visit</TableCell>
-                          <TableCell>Description</TableCell>
-                          <TableCell>Query Text</TableCell>
-                          <TableCell>Roles</TableCell>
-                          <TableCell>Frequency</TableCell>
-                          <TableCell align="right">Confidence</TableCell>
+                          <TableCell sx={{ minWidth: 120, maxWidth: 120, bgcolor: 'background.paper', zIndex: 1200 }}>ID</TableCell>
+                          <TableCell sx={{ minWidth: 150, maxWidth: 150, bgcolor: 'background.paper', zIndex: 1200 }}>Check Type</TableCell>
+                          <TableCell sx={{ minWidth: 150, maxWidth: 150, bgcolor: 'background.paper', zIndex: 1200 }}>Check Category</TableCell>
+                          <TableCell sx={{ minWidth: 150, maxWidth: 150, bgcolor: 'background.paper', zIndex: 1200 }}>Data Category</TableCell>
+                          <TableCell sx={{ minWidth: 120, maxWidth: 120, bgcolor: 'background.paper', zIndex: 1200 }}>Visit</TableCell>
+                          <TableCell sx={{ minWidth: 250, bgcolor: 'background.paper', zIndex: 1200 }}>Description</TableCell>
+                          <TableCell sx={{ minWidth: 250, bgcolor: 'background.paper', zIndex: 1200 }}>Query Text</TableCell>
+                          <TableCell sx={{ minWidth: 150, maxWidth: 150, bgcolor: 'background.paper', zIndex: 1200 }}>Roles</TableCell>
+                          <TableCell sx={{ minWidth: 120, maxWidth: 120, bgcolor: 'background.paper', zIndex: 1200 }}>Frequency</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 120, maxWidth: 120, bgcolor: 'background.paper', zIndex: 1200 }}>Confidence</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
@@ -1208,8 +1038,16 @@ function IDRPCreation() {
                               <TableCell>{check.checkCategory}</TableCell>
                               <TableCell>{check.dataCategory}</TableCell>
                               <TableCell>{check.visit}</TableCell>
-                              <TableCell>{check.description}</TableCell>
-                              <TableCell>{check.queryText}</TableCell>
+                              <TableCell>
+                                <Tooltip title={check.description} placement="top">
+                                  <Typography sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{check.description}</Typography>
+                                </Tooltip>
+                              </TableCell>
+                              <TableCell>
+                                <Tooltip title={check.queryText} placement="top">
+                                  <Typography sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{check.queryText}</Typography>
+                                </Tooltip>
+                              </TableCell>
                               <TableCell>{check.roles ? check.roles.join(', ') : ''}</TableCell>
                               <TableCell>{check.frequency}</TableCell>
                               <TableCell align="right">
@@ -1287,7 +1125,7 @@ function IDRPCreation() {
                     <Table stickyHeader size="small">
                       <TableHead>
                         <TableRow>
-                          <TableCell padding="checkbox">
+                          <TableCell padding="checkbox" sx={{ bgcolor: 'background.paper', zIndex: 1300 }}>
                             <Checkbox
                               indeterminate={
                                 filteredSimilarStudyChecks
@@ -1320,17 +1158,17 @@ function IDRPCreation() {
                               onChange={handleSelectAllSimilarStudyChecks}
                             />
                           </TableCell>
-                          <TableCell>ID</TableCell>
-                          <TableCell>Check Type</TableCell>
-                          <TableCell>Check Category</TableCell>
-                          <TableCell>Data Category</TableCell>
-                          <TableCell>Visit</TableCell>
-                          <TableCell>Description</TableCell>
-                          <TableCell>Query Text</TableCell>
-                          <TableCell>Roles</TableCell>
-                          <TableCell>Frequency</TableCell>
-                          <TableCell>Study</TableCell>
-                          <TableCell align="right">Confidence</TableCell>
+                          <TableCell sx={{ minWidth: 120, maxWidth: 120, bgcolor: 'background.paper', zIndex: 1200 }}>ID</TableCell>
+                          <TableCell sx={{ minWidth: 150, maxWidth: 150, bgcolor: 'background.paper', zIndex: 1200 }}>Check Type</TableCell>
+                          <TableCell sx={{ minWidth: 150, maxWidth: 150, bgcolor: 'background.paper', zIndex: 1200 }}>Check Category</TableCell>
+                          <TableCell sx={{ minWidth: 150, maxWidth: 150, bgcolor: 'background.paper', zIndex: 1200 }}>Data Category</TableCell>
+                          <TableCell sx={{ minWidth: 120, maxWidth: 120, bgcolor: 'background.paper', zIndex: 1200 }}>Visit</TableCell>
+                          <TableCell sx={{ minWidth: 250, bgcolor: 'background.paper', zIndex: 1200 }}>Description</TableCell>
+                          <TableCell sx={{ minWidth: 250, bgcolor: 'background.paper', zIndex: 1200 }}>Query Text</TableCell>
+                          <TableCell sx={{ minWidth: 150, maxWidth: 150, bgcolor: 'background.paper', zIndex: 1200 }}>Roles</TableCell>
+                          <TableCell sx={{ minWidth: 120, maxWidth: 120, bgcolor: 'background.paper', zIndex: 1200 }}>Frequency</TableCell>
+                          <TableCell sx={{ minWidth: 120, maxWidth: 120, bgcolor: 'background.paper', zIndex: 1200 }}>Study</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 120, maxWidth: 120, bgcolor: 'background.paper', zIndex: 1200 }}>Confidence</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
@@ -1352,8 +1190,16 @@ function IDRPCreation() {
                               <TableCell>{check.checkCategory}</TableCell>
                               <TableCell>{check.dataCategory}</TableCell>
                               <TableCell>{check.visit}</TableCell>
-                              <TableCell>{check.description}</TableCell>
-                              <TableCell>{check.queryText}</TableCell>
+                              <TableCell>
+                                <Tooltip title={check.description} placement="top">
+                                  <Typography sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{check.description}</Typography>
+                                </Tooltip>
+                              </TableCell>
+                              <TableCell>
+                                <Tooltip title={check.queryText} placement="top">
+                                  <Typography sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{check.queryText}</Typography>
+                                </Tooltip>
+                              </TableCell>
                               <TableCell>{check.roles ? check.roles.join(', ') : ''}</TableCell>
                               <TableCell>{check.frequency}</TableCell>
                               <TableCell>{check.similarStudy}</TableCell>
@@ -1405,17 +1251,17 @@ function IDRPCreation() {
                       </Typography>
                       <TableContainer component={Paper} variant="outlined">
                         <Table size="small">
-                          <TableHead sx={{ backgroundColor: 'primary.light' }}>
+                          <TableHead>
                             <TableRow>
-                              <TableCell>Check Type</TableCell>
-                              <TableCell>Check Category</TableCell>
-                              <TableCell>Data Category</TableCell>
-                              <TableCell>Visit</TableCell>
-                              <TableCell>Description</TableCell>
-                              <TableCell>Query Text</TableCell>
-                              <TableCell>Roles Involved</TableCell>
-                              <TableCell>Frequency</TableCell>
-                              <TableCell width="50px">Actions</TableCell>
+                              <TableCell sx={{ minWidth: 120, maxWidth: 120, bgcolor: 'background.paper', zIndex: 1200 }}>Check Type</TableCell>
+                              <TableCell sx={{ minWidth: 150, maxWidth: 150, bgcolor: 'background.paper', zIndex: 1200 }}>Check Category</TableCell>
+                              <TableCell sx={{ minWidth: 150, maxWidth: 150, bgcolor: 'background.paper', zIndex: 1200 }}>Data Category</TableCell>
+                              <TableCell sx={{ minWidth: 120, maxWidth: 120, bgcolor: 'background.paper', zIndex: 1200 }}>Visit</TableCell>
+                              <TableCell sx={{ minWidth: 250, bgcolor: 'background.paper', zIndex: 1200 }}>Description</TableCell>
+                              <TableCell sx={{ minWidth: 250, bgcolor: 'background.paper', zIndex: 1200 }}>Query Text</TableCell>
+                              <TableCell sx={{ minWidth: 150, maxWidth: 150, bgcolor: 'background.paper', zIndex: 1200 }}>Roles</TableCell>
+                              <TableCell sx={{ minWidth: 120, maxWidth: 120, bgcolor: 'background.paper', zIndex: 1200 }}>Frequency</TableCell>
+                              <TableCell sx={{ minWidth: 120, maxWidth: 120, bgcolor: 'background.paper', zIndex: 1200 }}></TableCell>
                             </TableRow>
                           </TableHead>
                           <TableBody>
@@ -1579,19 +1425,22 @@ function IDRPCreation() {
                         <Table size="small">
                           <TableHead>
                             <TableRow>
-                              <TableCell padding="checkbox">
-                                <Checkbox disabled />
+                              <TableCell padding="checkbox" sx={{ bgcolor: 'background.paper', zIndex: 1300 }}>
+                                <Checkbox
+                                  checked={true}
+                                  onChange={() => {}}
+                                />
                               </TableCell>
-                              <TableCell>Check ID</TableCell>
-                              <TableCell>Check Type</TableCell>
-                              <TableCell>Check Category</TableCell>
-                              <TableCell>Data Category</TableCell>
-                              <TableCell>Visit</TableCell>
-                              <TableCell>Description</TableCell>
-                              <TableCell>Query Text</TableCell>
-                              <TableCell>Roles</TableCell>
-                              <TableCell>Frequency</TableCell>
-                              <TableCell>Source</TableCell>
+                              <TableCell sx={{ minWidth: 120, maxWidth: 120, bgcolor: 'background.paper', zIndex: 1200 }}>ID</TableCell>
+                              <TableCell sx={{ minWidth: 150, maxWidth: 150, bgcolor: 'background.paper', zIndex: 1200 }}>Check Type</TableCell>
+                              <TableCell sx={{ minWidth: 150, maxWidth: 150, bgcolor: 'background.paper', zIndex: 1200 }}>Check Category</TableCell>
+                              <TableCell sx={{ minWidth: 150, maxWidth: 150, bgcolor: 'background.paper', zIndex: 1200 }}>Data Category</TableCell>
+                              <TableCell sx={{ minWidth: 120, maxWidth: 120, bgcolor: 'background.paper', zIndex: 1200 }}>Visit</TableCell>
+                              <TableCell sx={{ minWidth: 250, bgcolor: 'background.paper', zIndex: 1200 }}>Description</TableCell>
+                              <TableCell sx={{ minWidth: 250, bgcolor: 'background.paper', zIndex: 1200 }}>Query Text</TableCell>
+                              <TableCell sx={{ minWidth: 150, maxWidth: 150, bgcolor: 'background.paper', zIndex: 1200 }}>Roles</TableCell>
+                              <TableCell sx={{ minWidth: 120, maxWidth: 120, bgcolor: 'background.paper', zIndex: 1200 }}>Frequency</TableCell>
+                              <TableCell sx={{ minWidth: 120, maxWidth: 120, bgcolor: 'background.paper', zIndex: 1200 }}>Source</TableCell>
                             </TableRow>
                           </TableHead>
                           <TableBody>
@@ -1600,7 +1449,7 @@ function IDRPCreation() {
                                 <TableCell padding="checkbox">
                                   <Checkbox
                                     checked={true}
-                                    onChange={() => handleCheckToggle(check)}
+                                    onChange={() => {}}
                                   />
                                 </TableCell>
                                 <TableCell>{check.id}</TableCell>
@@ -1608,8 +1457,16 @@ function IDRPCreation() {
                                 <TableCell>{check.checkCategory}</TableCell>
                                 <TableCell>{check.dataCategory}</TableCell>
                                 <TableCell>{check.visit}</TableCell>
-                                <TableCell>{check.description}</TableCell>
-                                <TableCell>{check.queryText}</TableCell>
+                                <TableCell>
+                                  <Tooltip title={check.description} placement="top">
+                                    <Typography sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{check.description}</Typography>
+                                  </Tooltip>
+                                </TableCell>
+                                <TableCell>
+                                  <Tooltip title={check.queryText} placement="top">
+                                    <Typography sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{check.queryText}</Typography>
+                                  </Tooltip>
+                                </TableCell>
                                 <TableCell>{check.roles ? check.roles.join(', ') : ''}</TableCell>
                                 <TableCell>{check.frequency}</TableCell>
                                 <TableCell>{check.source}</TableCell>
@@ -1631,6 +1488,7 @@ function IDRPCreation() {
             </Grid>
           </Box>
         );
+      
       case 2:
         return (
           <Box sx={{ mt: 4 }}>
@@ -1717,8 +1575,10 @@ function IDRPCreation() {
   };
 
   const handleOpenLibraryDialog = () => {
-    setExpandedSearchTerm(searchTerm);
-    setExpandedFilterType(filterType);
+    setLibrarySearchTerm(searchTerm);
+    setLibraryFilterType(filterType);
+    setLibraryFilterCategory('');
+    setLibraryFilterDataCategory('');
     setExpandedLibraryPage(0);
     setLibraryDialogOpen(true);
   };
@@ -1748,6 +1608,21 @@ function IDRPCreation() {
     setExpandedFilterType(event.target.value);
     setExpandedLibraryPage(0);
     setExpandedSimilarStudiesPage(0);
+  };
+
+  const handleAddSelectedChecks = (selectedChecks) => {
+    // Add all selected checks to the IDRP
+    const newSelectedChecks = [...selectedChecks];
+    setSelectedChecks(prevSelectedChecks => {
+      // Filter out checks that are already selected
+      const newChecks = newSelectedChecks.filter(
+        newCheck => !prevSelectedChecks.some(check => check.id === newCheck.id)
+      );
+      return [...prevSelectedChecks, ...newChecks];
+    });
+    
+    // Show success message
+    alert(`${selectedChecks.length} checks added to IDRP`);
   };
 
   return (
@@ -1828,122 +1703,218 @@ function IDRPCreation() {
             <CloseIcon />
           </IconButton>
         </DialogTitle>
-        <DialogContent sx={{ flex: 1, overflow: 'hidden' }}>
-          <Grid container spacing={3} sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <Grid item xs={12} sx={{ flexShrink: 0 }}>
-              <TextField
-                size="small"
-                placeholder="Search..."
-                value={expandedSearchTerm}
-                onChange={handleExpandedSearchChange}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon fontSize="small" />
-                    </InputAdornment>
-                  ),
+        <DialogContent sx={{ flex: 1, overflow: 'hidden', p: 2 }}>
+          <Box sx={{ mb: 2, display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
+            {/* Search field */}
+            <TextField
+              size="small"
+              placeholder="Search..."
+              value={librarySearchTerm}
+              onChange={(e) => setLibrarySearchTerm(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon fontSize="small" />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{ width: 200 }}
+            />
+            
+            {/* Check Type filter */}
+            <FormControl size="small" sx={{ minWidth: 150 }}>
+              <InputLabel id="check-type-filter-label">Check Type</InputLabel>
+              <Select
+                labelId="check-type-filter-label"
+                label="Check Type"
+                value={libraryFilterType}
+                onChange={(e) => setLibraryFilterType(e.target.value)}
+              >
+                <MenuItem value="">All Types</MenuItem>
+                <MenuItem value="DQ">DQ</MenuItem>
+                <MenuItem value="IRL">IRL</MenuItem>
+                <MenuItem value="Dashboard">Dashboard</MenuItem>
+                <MenuItem value="Protocol Compliance">Protocol Compliance</MenuItem>
+                <MenuItem value="Data Quality">Data Quality</MenuItem>
+              </Select>
+            </FormControl>
+            
+            {/* Check Category filter */}
+            <FormControl size="small" sx={{ minWidth: 150 }}>
+              <InputLabel id="check-category-filter-label">Check Category</InputLabel>
+              <Select
+                labelId="check-category-filter-label"
+                label="Check Category"
+                value={libraryFilterCategory}
+                onChange={(e) => setLibraryFilterCategory(e.target.value)}
+              >
+                <MenuItem value="">All Categories</MenuItem>
+                <MenuItem value="Data Quality">Data Quality</MenuItem>
+                <MenuItem value="Missing Data">Missing Data</MenuItem>
+                <MenuItem value="Safety">Safety</MenuItem>
+                <MenuItem value="Efficacy">Efficacy</MenuItem>
+                <MenuItem value="Protocol Compliance">Protocol Compliance</MenuItem>
+              </Select>
+            </FormControl>
+            
+            {/* Data Category filter */}
+            <FormControl size="small" sx={{ minWidth: 150 }}>
+              <InputLabel id="data-category-filter-label">Data Category</InputLabel>
+              <Select
+                labelId="data-category-filter-label"
+                label="Data Category"
+                value={libraryFilterDataCategory}
+                onChange={(e) => setLibraryFilterDataCategory(e.target.value)}
+              >
+                <MenuItem value="">All Data Categories</MenuItem>
+                <MenuItem value="Data">Data</MenuItem>
+                <MenuItem value="Demographics">Demographics</MenuItem>
+                <MenuItem value="Laboratory Data">Laboratory Data</MenuItem>
+                <MenuItem value="Adverse Events">Adverse Events</MenuItem>
+              </Select>
+            </FormControl>
+            
+            {/* Rows per page selector */}
+            <FormControl size="small" sx={{ minWidth: 100 }}>
+              <InputLabel id="rows-per-page-label">Rows</InputLabel>
+              <Select
+                labelId="rows-per-page-label"
+                label="Rows"
+                value={rowsPerPage}
+                onChange={(event) => {
+                  setRowsPerPage(parseInt(event.target.value, 10));
+                  setExpandedLibraryPage(0);
                 }}
-                sx={{ width: 150 }}
-              />
-              <FormControl size="small" sx={{ width: 150 }}>
-                <Select
-                  displayEmpty
-                  value={expandedFilterType}
-                  onChange={handleExpandedFilterTypeChange}
-                >
-                  <MenuItem value="">All Types</MenuItem>
-                  <MenuItem value="DQ">DQ</MenuItem>
-                  <MenuItem value="IRL">IRL</MenuItem>
-                  <MenuItem value="Dashboard">Dashboard</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} sx={{ flex: 1, overflow: 'hidden' }}>
-              <TableContainer sx={{ height: 'calc(100% - 52px)', overflow: 'auto' }}>
-                <Table stickyHeader size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell padding="checkbox">
-                        <Checkbox
-                          indeterminate={
-                            expandedFilteredLibraryChecks
-                              .slice(
-                                expandedLibraryPage * rowsPerPage,
-                                expandedLibraryPage * rowsPerPage + rowsPerPage
-                              )
-                              .some(check => isCheckSelected(check.id)) &&
-                            !expandedFilteredLibraryChecks
-                              .slice(
-                                expandedLibraryPage * rowsPerPage,
-                                expandedLibraryPage * rowsPerPage + rowsPerPage
-                              )
-                              .every(check => isCheckSelected(check.id))
-                          }
-                          checked={
-                            expandedFilteredLibraryChecks
-                              .slice(
-                                expandedLibraryPage * rowsPerPage,
-                                expandedLibraryPage * rowsPerPage + rowsPerPage
-                              )
-                              .length > 0 &&
-                            expandedFilteredLibraryChecks
-                              .slice(
-                                expandedLibraryPage * rowsPerPage,
-                                expandedLibraryPage * rowsPerPage + rowsPerPage
-                              )
-                              .every(check => isCheckSelected(check.id))
-                          }
-                          onChange={handleSelectAllExpandedLibraryChecks}
-                        />
-                      </TableCell>
-                      <TableCell>ID</TableCell>
-                      <TableCell>Check Type</TableCell>
-                      <TableCell>Check Category</TableCell>
-                      <TableCell>Data Category</TableCell>
-                      <TableCell>Visit</TableCell>
-                      <TableCell>Description</TableCell>
-                      <TableCell>Query Text</TableCell>
-                      <TableCell>Roles</TableCell>
-                      <TableCell>Frequency</TableCell>
-                      <TableCell align="right">Confidence</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {expandedFilteredLibraryChecks
-                      .slice(
-                        expandedLibraryPage * rowsPerPage,
-                        expandedLibraryPage * rowsPerPage + rowsPerPage
-                      )
-                      .map((check) => (
-                        <TableRow key={check.id} hover>
-                          <TableCell padding="checkbox">
-                            <Checkbox
-                              checked={isCheckSelected(check.id)}
-                              onChange={() => handleCheckToggle(check)}
-                            />
-                          </TableCell>
-                          <TableCell>{check.id}</TableCell>
-                          <TableCell>{check.checkType}</TableCell>
-                          <TableCell>{check.checkCategory}</TableCell>
-                          <TableCell>{check.dataCategory}</TableCell>
-                          <TableCell>{check.visit}</TableCell>
-                          <TableCell>{check.description}</TableCell>
-                          <TableCell>{check.queryText}</TableCell>
-                          <TableCell>{check.roles ? check.roles.join(', ') : ''}</TableCell>
-                          <TableCell>{check.frequency}</TableCell>
-                          <TableCell align="right">
-                            <Chip 
-                              label={`${check.confidence}% match`}
-                              size="small"
-                              color="primary"
-                              variant="outlined"
-                            />
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+              >
+                <MenuItem value={10}>10</MenuItem>
+                <MenuItem value={25}>25</MenuItem>
+                <MenuItem value={50}>50</MenuItem>
+                <MenuItem value={100}>100</MenuItem>
+              </Select>
+            </FormControl>
+            
+            {/* Reset filters button */}
+            <Button 
+              variant="outlined" 
+              size="small" 
+              startIcon={<RefreshIcon />}
+              onClick={() => {
+                setLibrarySearchTerm('');
+                setLibraryFilterType('');
+                setLibraryFilterCategory('');
+                setLibraryFilterDataCategory('');
+              }}
+            >
+              Reset Filters
+            </Button>
+          </Box>
+          
+          <Paper elevation={0} variant="outlined" sx={{ height: 'calc(100% - 60px)', display: 'flex', flexDirection: 'column' }}>
+            <TableContainer sx={{ flex: 1, overflow: 'auto' }}>
+              <Table stickyHeader size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell padding="checkbox" sx={{ bgcolor: 'background.paper', zIndex: 1300 }}>
+                      <Checkbox
+                        indeterminate={
+                          expandedFilteredLibraryChecks
+                            .slice(
+                              expandedLibraryPage * rowsPerPage,
+                              expandedLibraryPage * rowsPerPage + rowsPerPage
+                            )
+                            .some(check => isCheckSelected(check.id)) &&
+                          !expandedFilteredLibraryChecks
+                            .slice(
+                              expandedLibraryPage * rowsPerPage,
+                              expandedLibraryPage * rowsPerPage + rowsPerPage
+                            )
+                            .every(check => isCheckSelected(check.id))
+                        }
+                        checked={
+                          expandedFilteredLibraryChecks
+                            .slice(
+                              expandedLibraryPage * rowsPerPage,
+                              expandedLibraryPage * rowsPerPage + rowsPerPage
+                            )
+                            .length > 0 &&
+                          expandedFilteredLibraryChecks
+                            .slice(
+                              expandedLibraryPage * rowsPerPage,
+                              expandedLibraryPage * rowsPerPage + rowsPerPage
+                            )
+                            .every(check => isCheckSelected(check.id))
+                        }
+                        onChange={handleSelectAllExpandedLibraryChecks}
+                      />
+                    </TableCell>
+                    <TableCell sx={{ minWidth: 120, maxWidth: 120, bgcolor: 'background.paper', zIndex: 1200 }}>ID</TableCell>
+                    <TableCell sx={{ minWidth: 150, maxWidth: 150, bgcolor: 'background.paper', zIndex: 1200 }}>Check Type</TableCell>
+                    <TableCell sx={{ minWidth: 150, maxWidth: 150, bgcolor: 'background.paper', zIndex: 1200 }}>Check Category</TableCell>
+                    <TableCell sx={{ minWidth: 150, maxWidth: 150, bgcolor: 'background.paper', zIndex: 1200 }}>Data Category</TableCell>
+                    <TableCell sx={{ minWidth: 120, maxWidth: 120, bgcolor: 'background.paper', zIndex: 1200 }}>Visit</TableCell>
+                    <TableCell sx={{ minWidth: 250, bgcolor: 'background.paper', zIndex: 1200 }}>Description</TableCell>
+                    <TableCell sx={{ minWidth: 250, bgcolor: 'background.paper', zIndex: 1200 }}>Query Text</TableCell>
+                    <TableCell sx={{ minWidth: 150, maxWidth: 150, bgcolor: 'background.paper', zIndex: 1200 }}>Roles</TableCell>
+                    <TableCell sx={{ minWidth: 120, maxWidth: 120, bgcolor: 'background.paper', zIndex: 1200 }}>Frequency</TableCell>
+                    <TableCell align="right" sx={{ minWidth: 120, maxWidth: 120, bgcolor: 'background.paper', zIndex: 1200 }}>Confidence</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {expandedFilteredLibraryChecks
+                    .slice(
+                      expandedLibraryPage * rowsPerPage,
+                      expandedLibraryPage * rowsPerPage + rowsPerPage
+                    )
+                    .map((check) => (
+                      <TableRow key={check.id} hover>
+                        <TableCell padding="checkbox">
+                          <Checkbox
+                            checked={isCheckSelected(check.id)}
+                            onChange={() => handleCheckToggle(check)}
+                          />
+                        </TableCell>
+                        <TableCell sx={{ minWidth: 120, maxWidth: 120 }}>{check.id}</TableCell>
+                        <TableCell sx={{ minWidth: 150, maxWidth: 150 }}>{check.checkType}</TableCell>
+                        <TableCell sx={{ minWidth: 150, maxWidth: 150 }}>{check.checkCategory}</TableCell>
+                        <TableCell sx={{ minWidth: 150, maxWidth: 150 }}>{check.dataCategory}</TableCell>
+                        <TableCell sx={{ minWidth: 120, maxWidth: 120 }}>{check.visit}</TableCell>
+                        <TableCell sx={{ minWidth: 250 }}>
+                          <Tooltip title={check.description} placement="top">
+                            <Typography sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{check.description}</Typography>
+                          </Tooltip>
+                        </TableCell>
+                        <TableCell sx={{ minWidth: 250 }}>
+                          <Tooltip title={check.queryText} placement="top">
+                            <Typography sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{check.queryText}</Typography>
+                          </Tooltip>
+                        </TableCell>
+                        <TableCell sx={{ minWidth: 150, maxWidth: 150 }}>
+                          {check.rolesInvolved && check.rolesInvolved.length > 0 ? (
+                            <Tooltip title={check.rolesInvolved.join(', ')} placement="top">
+                              <Typography sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{check.rolesInvolved.join(', ')}</Typography>
+                            </Tooltip>
+                          ) : ''}
+                        </TableCell>
+                        <TableCell sx={{ minWidth: 120, maxWidth: 120 }}>{check.frequency}</TableCell>
+                        <TableCell align="right" sx={{ minWidth: 120, maxWidth: 120 }}>
+                          <Chip 
+                            label={`${check.confidence}% match`}
+                            size="small"
+                            color="primary"
+                            variant="outlined"
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 1, borderTop: '1px solid', borderColor: 'divider' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <Typography variant="body2" sx={{ color: 'text.primary' }}>
+                  {expandedFilteredLibraryChecks.length} items found
+                </Typography>
+              </Box>
               <TablePagination
                 component="div"
                 count={expandedFilteredLibraryChecks.length}
@@ -1956,11 +1927,25 @@ function IDRPCreation() {
                 }}
                 rowsPerPageOptions={[10, 25, 50, 100]}
               />
-            </Grid>
-          </Grid>
+            </Box>
+          </Paper>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseLibraryDialog} color="primary">
+        <DialogActions sx={{ p: 2, pt: 1 }}>
+          <Button 
+            variant="outlined" 
+            startIcon={<AddCircleOutlineIcon />}
+            onClick={() => {
+              // Add selected checks
+              const selectedChecks = expandedFilteredLibraryChecks.filter(check => 
+                isCheckSelected(check.id)
+              );
+              handleAddSelectedChecks(selectedChecks);
+              handleCloseLibraryDialog();
+            }}
+          >
+            Add Selected
+          </Button>
+          <Button variant="contained" onClick={handleCloseLibraryDialog} color="primary">
             Close
           </Button>
         </DialogActions>
@@ -2030,7 +2015,7 @@ function IDRPCreation() {
                 <Table stickyHeader size="small">
                   <TableHead>
                     <TableRow>
-                      <TableCell padding="checkbox">
+                      <TableCell padding="checkbox" sx={{ bgcolor: 'background.paper', zIndex: 1300 }}>
                         <Checkbox
                           indeterminate={
                             expandedFilteredSimilarStudyChecks
@@ -2063,17 +2048,17 @@ function IDRPCreation() {
                           onChange={handleSelectAllExpandedSimilarStudyChecks}
                         />
                       </TableCell>
-                      <TableCell>ID</TableCell>
-                      <TableCell>Check Type</TableCell>
-                      <TableCell>Check Category</TableCell>
-                      <TableCell>Data Category</TableCell>
-                      <TableCell>Visit</TableCell>
-                      <TableCell>Description</TableCell>
-                      <TableCell>Query Text</TableCell>
-                      <TableCell>Roles</TableCell>
-                      <TableCell>Frequency</TableCell>
-                      <TableCell>Study</TableCell>
-                      <TableCell align="right">Confidence</TableCell>
+                      <TableCell sx={{ minWidth: 120, maxWidth: 120, bgcolor: 'background.paper', zIndex: 1200 }}>ID</TableCell>
+                      <TableCell sx={{ minWidth: 150, maxWidth: 150, bgcolor: 'background.paper', zIndex: 1200 }}>Check Type</TableCell>
+                      <TableCell sx={{ minWidth: 150, maxWidth: 150, bgcolor: 'background.paper', zIndex: 1200 }}>Check Category</TableCell>
+                      <TableCell sx={{ minWidth: 150, maxWidth: 150, bgcolor: 'background.paper', zIndex: 1200 }}>Data Category</TableCell>
+                      <TableCell sx={{ minWidth: 120, maxWidth: 120, bgcolor: 'background.paper', zIndex: 1200 }}>Visit</TableCell>
+                      <TableCell sx={{ minWidth: 250, bgcolor: 'background.paper', zIndex: 1200 }}>Description</TableCell>
+                      <TableCell sx={{ minWidth: 250, bgcolor: 'background.paper', zIndex: 1200 }}>Query Text</TableCell>
+                      <TableCell sx={{ minWidth: 150, maxWidth: 150, bgcolor: 'background.paper', zIndex: 1200 }}>Roles</TableCell>
+                      <TableCell sx={{ minWidth: 120, maxWidth: 120, bgcolor: 'background.paper', zIndex: 1200 }}>Frequency</TableCell>
+                      <TableCell sx={{ minWidth: 120, maxWidth: 120, bgcolor: 'background.paper', zIndex: 1200 }}>Study</TableCell>
+                      <TableCell align="right" sx={{ minWidth: 120, maxWidth: 120, bgcolor: 'background.paper', zIndex: 1200 }}>Confidence</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -2095,8 +2080,16 @@ function IDRPCreation() {
                           <TableCell>{check.checkCategory}</TableCell>
                           <TableCell>{check.dataCategory}</TableCell>
                           <TableCell>{check.visit}</TableCell>
-                          <TableCell>{check.description}</TableCell>
-                          <TableCell>{check.queryText}</TableCell>
+                          <TableCell>
+                            <Tooltip title={check.description} placement="top">
+                              <Typography sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{check.description}</Typography>
+                            </Tooltip>
+                          </TableCell>
+                          <TableCell>
+                            <Tooltip title={check.queryText} placement="top">
+                              <Typography sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{check.queryText}</Typography>
+                            </Tooltip>
+                          </TableCell>
                           <TableCell>{check.roles ? check.roles.join(', ') : ''}</TableCell>
                           <TableCell>{check.frequency}</TableCell>
                           <TableCell>{check.similarStudy}</TableCell>

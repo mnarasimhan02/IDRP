@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -29,7 +29,17 @@ import {
   DialogContent,
   DialogContentText,
   DialogActions,
-  useTheme
+  useTheme,
+  Alert,
+  AlertTitle,
+  TableContainer,
+  Table,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableBody,
+  TablePagination,
+  CircularProgress
 } from '@mui/material';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import SecurityIcon from '@mui/icons-material/Security';
@@ -40,6 +50,9 @@ import CloudIcon from '@mui/icons-material/Cloud';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
+import LibraryBooksIcon from '@mui/icons-material/LibraryBooks';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
+import { readExcelFile, mapExcelDataToChecks } from '../utils/excelUtils';
 
 function Settings() {
   const theme = useTheme();
@@ -66,7 +79,26 @@ function Settings() {
     { id: 2, name: 'EDC System', status: 'Connected', lastSync: '2025-03-18' },
     { id: 3, name: 'CTMS', status: 'Disconnected', lastSync: 'Never' }
   ]);
-
+  
+  // Library management states
+  const fileInputRef = useRef(null);
+  const [globalLibraryChecks, setGlobalLibraryChecks] = useState(() => {
+    try {
+      const savedChecks = localStorage.getItem('globalLibraryChecks');
+      return savedChecks ? JSON.parse(savedChecks) : [];
+    } catch (error) {
+      console.error('Error loading global library checks:', error);
+      return [];
+    }
+  });
+  const [isImporting, setIsImporting] = useState(false);
+  const [importSuccess, setImportSuccess] = useState(false);
+  const [importError, setImportError] = useState('');
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(100);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [currentEditCheck, setCurrentEditCheck] = useState(null);
+  
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
   };
@@ -90,6 +122,111 @@ function Settings() {
   const handleIntegrationTypeChange = (event) => {
     setSelectedIntegrationType(event.target.value);
   };
+  
+  // Library management functions
+  const handleImportButtonClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+  
+  const handleExcelImport = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    try {
+      setIsImporting(true);
+      setImportSuccess(false);
+      setImportError('');
+      
+      const jsonData = await readExcelFile(file);
+      const formattedChecks = mapExcelDataToChecks(jsonData);
+      
+      // Add source and confidence properties to each check
+      const checksWithMetadata = formattedChecks.map(check => ({
+        ...check,
+        source: 'Global Library',
+        confidence: 90 // High confidence for global library checks
+      }));
+      
+      // Save to state and localStorage
+      setGlobalLibraryChecks(checksWithMetadata);
+      localStorage.setItem('globalLibraryChecks', JSON.stringify(checksWithMetadata));
+      
+      setImportSuccess(true);
+      setTimeout(() => setImportSuccess(false), 5000); // Hide success message after 5 seconds
+    } catch (error) {
+      console.error('Error importing Excel file:', error);
+      setImportError(`Error importing Excel file: ${error.message}`);
+      setTimeout(() => setImportError(''), 5000); // Hide error message after 5 seconds
+    } finally {
+      setIsImporting(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+  
+  const handleChangePage = (event, newPage) => {
+    setPage(newPage);
+  };
+
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+  
+  const handleDeleteCheck = (checkId) => {
+    const updatedChecks = globalLibraryChecks.filter(check => check.id !== checkId);
+    setGlobalLibraryChecks(updatedChecks);
+    localStorage.setItem('globalLibraryChecks', JSON.stringify(updatedChecks));
+  };
+  
+  const handleClearAllChecks = () => {
+    if (window.confirm('Are you sure you want to clear all global library checks? This action cannot be undone.')) {
+      setGlobalLibraryChecks([]);
+      localStorage.setItem('globalLibraryChecks', JSON.stringify([]));
+    }
+  };
+  
+  // Edit check functions
+  const handleEditCheck = (check) => {
+    setCurrentEditCheck({...check});
+    setEditDialogOpen(true);
+  };
+  
+  const handleEditDialogClose = () => {
+    setEditDialogOpen(false);
+    setCurrentEditCheck(null);
+  };
+  
+  const handleEditCheckChange = (e) => {
+    const { name, value } = e.target;
+    setCurrentEditCheck({
+      ...currentEditCheck,
+      [name]: value
+    });
+  };
+  
+  const handleEditRolesChange = (e) => {
+    const roles = e.target.value;
+    setCurrentEditCheck({
+      ...currentEditCheck,
+      rolesInvolved: roles
+    });
+  };
+  
+  const handleSaveEditedCheck = () => {
+    const updatedChecks = globalLibraryChecks.map(check => 
+      check.id === currentEditCheck.id ? currentEditCheck : check
+    );
+    
+    setGlobalLibraryChecks(updatedChecks);
+    localStorage.setItem('globalLibraryChecks', JSON.stringify(updatedChecks));
+    setEditDialogOpen(false);
+    setCurrentEditCheck(null);
+  };
 
   return (
     <Box>
@@ -103,11 +240,14 @@ function Settings() {
           onChange={handleTabChange}
           indicatorColor="primary"
           textColor="primary"
+          variant="scrollable"
+          scrollButtons="auto"
         >
           <Tab label="Profile" icon={<PersonIcon />} iconPosition="start" />
           <Tab label="Notifications" icon={<NotificationsIcon />} iconPosition="start" />
           <Tab label="Integrations" icon={<IntegrationInstructionsIcon />} iconPosition="start" />
           <Tab label="Security" icon={<SecurityIcon />} iconPosition="start" />
+          <Tab label="Library Management" icon={<LibraryBooksIcon />} iconPosition="start" />
         </Tabs>
       </Paper>
       
@@ -540,6 +680,160 @@ function Settings() {
         </Grid>
       )}
       
+      {/* Library Management Settings */}
+      {tabValue === 4 && (
+        <Grid container spacing={3}>
+          <Grid item xs={12}>
+            <Card>
+              <CardHeader 
+                title="Global Library of Checks" 
+                subheader="Import and manage your global library of checks for IDRP creation"
+                action={
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    <Button 
+                      variant="contained" 
+                      color="primary"
+                      startIcon={<UploadFileIcon />}
+                      onClick={handleImportButtonClick}
+                      disabled={isImporting}
+                    >
+                      {isImporting ? 'Importing...' : 'Import from Excel'}
+                    </Button>
+                    {globalLibraryChecks.length > 0 && (
+                      <Button 
+                        variant="outlined" 
+                        color="error"
+                        onClick={handleClearAllChecks}
+                      >
+                        Clear All
+                      </Button>
+                    )}
+                    <input
+                      type="file"
+                      accept=".xlsx, .xls, .csv"
+                      ref={fileInputRef}
+                      onChange={handleExcelImport}
+                      style={{ display: 'none' }}
+                    />
+                  </Box>
+                }
+              />
+              <Divider />
+              
+              {isImporting && (
+                <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+                  <CircularProgress />
+                </Box>
+              )}
+              
+              {importSuccess && (
+                <Alert severity="success" sx={{ mx: 2, mt: 2 }}>
+                  <AlertTitle>Success</AlertTitle>
+                  Successfully imported {globalLibraryChecks.length} checks to the global library.
+                </Alert>
+              )}
+              
+              {importError && (
+                <Alert severity="error" sx={{ mx: 2, mt: 2 }}>
+                  <AlertTitle>Error</AlertTitle>
+                  {importError}
+                </Alert>
+              )}
+              
+              {globalLibraryChecks.length === 0 ? (
+                <Box sx={{ p: 4, textAlign: 'center' }}>
+                  <Typography variant="body1" color="text.secondary">
+                    No checks in the global library. Import an Excel file to add checks.
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    The Excel file should contain columns for CheckID, CheckType, CheckCategory, DataCategory, Visit, Description, QueryText, RolesInvolved, and Frequency.
+                  </Typography>
+                </Box>
+              ) : (
+                <>
+                  <TableContainer sx={{ maxHeight: 600 }}>
+                    <Table stickyHeader size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>ID</TableCell>
+                          <TableCell>Check Type</TableCell>
+                          <TableCell>Check Category</TableCell>
+                          <TableCell>Data Category</TableCell>
+                          <TableCell>Visit</TableCell>
+                          <TableCell>Description</TableCell>
+                          <TableCell>Query Text</TableCell>
+                          <TableCell>Roles</TableCell>
+                          <TableCell>Frequency</TableCell>
+                          <TableCell align="right">Actions</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {globalLibraryChecks
+                          .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                          .map((check) => (
+                            <TableRow key={check.id} hover>
+                              <TableCell>{check.id || ''}</TableCell>
+                              <TableCell>{check.checkType || ''}</TableCell>
+                              <TableCell>{check.checkCategory || ''}</TableCell>
+                              <TableCell>{check.dataCategory || ''}</TableCell>
+                              <TableCell>{check.visit || ''}</TableCell>
+                              <TableCell>{check.description || ''}</TableCell>
+                              <TableCell>{check.queryText || ''}</TableCell>
+                              <TableCell>
+                                {Array.isArray(check.rolesInvolved) && check.rolesInvolved.length > 0
+                                  ? check.rolesInvolved.filter(Boolean).join(', ') 
+                                  : check.rolesInvolved || ''}
+                              </TableCell>
+                              <TableCell>{check.frequency || ''}</TableCell>
+                              <TableCell align="right">
+                                <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                  <IconButton 
+                                    size="small" 
+                                    color="primary"
+                                    onClick={() => handleEditCheck(check)}
+                                  >
+                                    <EditIcon fontSize="small" />
+                                  </IconButton>
+                                  <IconButton 
+                                    size="small" 
+                                    color="error"
+                                    onClick={() => handleDeleteCheck(check.id)}
+                                  >
+                                    <DeleteIcon fontSize="small" />
+                                  </IconButton>
+                                </Box>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                  <TablePagination
+                    component="div"
+                    count={globalLibraryChecks.length}
+                    page={page}
+                    onPageChange={handleChangePage}
+                    rowsPerPage={rowsPerPage}
+                    onRowsPerPageChange={handleChangeRowsPerPage}
+                    rowsPerPageOptions={[25, 50, 100]}
+                  />
+                </>
+              )}
+              
+              <Box sx={{ p: 2, bgcolor: 'background.default' }}>
+                <Typography variant="subtitle2" gutterBottom>
+                  About Global Library of Checks
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  The global library of checks will be available during IDRP creation as recommendations.
+                  These checks will appear in the "Standard Library Recommendations" section with high confidence scores.
+                </Typography>
+              </Box>
+            </Card>
+          </Grid>
+        </Grid>
+      )}
+      
       {/* Add Integration Dialog */}
       <Dialog open={integrationDialogOpen} onClose={handleIntegrationDialogClose}>
         <DialogTitle>Add New Integration</DialogTitle>
@@ -595,6 +889,144 @@ function Settings() {
             disabled={!selectedIntegrationType}
           >
             Add Integration
+          </Button>
+        </DialogActions>
+      </Dialog>
+      
+      {/* Edit Check Dialog */}
+      <Dialog open={editDialogOpen} onClose={handleEditDialogClose} maxWidth="md" fullWidth>
+        <DialogTitle>Edit Check</DialogTitle>
+        <DialogContent>
+          {currentEditCheck && (
+            <Grid container spacing={2} sx={{ mt: 1 }}>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Check ID"
+                  name="id"
+                  value={currentEditCheck.id}
+                  onChange={handleEditCheckChange}
+                  margin="normal"
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <FormControl fullWidth margin="normal">
+                  <InputLabel>Check Type</InputLabel>
+                  <Select
+                    name="checkType"
+                    value={currentEditCheck.checkType}
+                    onChange={handleEditCheckChange}
+                    label="Check Type"
+                  >
+                    <MenuItem value="DQ">DQ</MenuItem>
+                    <MenuItem value="IRL">IRL</MenuItem>
+                    <MenuItem value="Dashboard">Dashboard</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Check Category"
+                  name="checkCategory"
+                  value={currentEditCheck.checkCategory}
+                  onChange={handleEditCheckChange}
+                  margin="normal"
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Data Category"
+                  name="dataCategory"
+                  value={currentEditCheck.dataCategory}
+                  onChange={handleEditCheckChange}
+                  margin="normal"
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Visit"
+                  name="visit"
+                  value={currentEditCheck.visit}
+                  onChange={handleEditCheckChange}
+                  margin="normal"
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <FormControl fullWidth margin="normal">
+                  <InputLabel>Frequency</InputLabel>
+                  <Select
+                    name="frequency"
+                    value={currentEditCheck.frequency}
+                    onChange={handleEditCheckChange}
+                    label="Frequency"
+                  >
+                    <MenuItem value="Daily">Daily</MenuItem>
+                    <MenuItem value="Weekly">Weekly</MenuItem>
+                    <MenuItem value="Monthly">Monthly</MenuItem>
+                    <MenuItem value="Quarterly">Quarterly</MenuItem>
+                    <MenuItem value="Ad hoc">Ad hoc</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Description"
+                  name="description"
+                  value={currentEditCheck.description}
+                  onChange={handleEditCheckChange}
+                  margin="normal"
+                  multiline
+                  rows={2}
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Query Text"
+                  name="queryText"
+                  value={currentEditCheck.queryText}
+                  onChange={handleEditCheckChange}
+                  margin="normal"
+                  multiline
+                  rows={2}
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <FormControl fullWidth margin="normal">
+                  <InputLabel>Roles Involved</InputLabel>
+                  <Select
+                    multiple
+                    name="rolesInvolved"
+                    value={Array.isArray(currentEditCheck.rolesInvolved) ? currentEditCheck.rolesInvolved : []}
+                    onChange={handleEditRolesChange}
+                    label="Roles Involved"
+                    renderValue={(selected) => (
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        {selected.map((value) => (
+                          <Chip key={value} label={value} />
+                        ))}
+                      </Box>
+                    )}
+                  >
+                    <MenuItem value="Data Manager">Data Manager</MenuItem>
+                    <MenuItem value="Medical Monitor">Medical Monitor</MenuItem>
+                    <MenuItem value="Safety Reviewer">Safety Reviewer</MenuItem>
+                    <MenuItem value="Study Manager">Study Manager</MenuItem>
+                    <MenuItem value="Statistician">Statistician</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+            </Grid>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleEditDialogClose}>Cancel</Button>
+          <Button onClick={handleSaveEditedCheck} variant="contained" color="primary">
+            Save Changes
           </Button>
         </DialogActions>
       </Dialog>

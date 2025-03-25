@@ -150,7 +150,7 @@ function Documentation() {
                 <CheckCircleIcon color="primary" />
               </ListItemIcon>
               <ListItemText 
-                primary="Step 3: Review AI Recommendations" 
+                primary="Step 3: Review iDRP Assist" 
                 secondary="The system will suggest checks based on the study information. You can accept, modify, or reject these recommendations"
               />
             </ListItem>
@@ -176,7 +176,7 @@ function Documentation() {
         </AccordionDetails>
       </Accordion>
 
-      {/* AI Recommendations Section */}
+      {/* iDRP Assist Section */}
       <Accordion>
         <AccordionSummary
           expandIcon={<ExpandMoreIcon />}
@@ -186,16 +186,16 @@ function Documentation() {
         >
           <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
             <InfoIcon sx={{ mr: 1, verticalAlign: 'middle', color: 'primary.main' }} />
-            Working with AI Recommendations
+            Working with iDRP Assist
           </Typography>
         </AccordionSummary>
         <AccordionDetails>
           <Typography variant="body1" paragraph>
-            The IDRP system uses AI to recommend data quality checks based on your study attributes and historical data from similar studies.
+            The IDRP system uses iDRP Assist to recommend data quality checks based on your study attributes and historical data from similar studies.
           </Typography>
           
           <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mt: 2, mb: 1 }}>
-            Types of AI Recommendations:
+            Types of iDRP Assist Recommendations:
           </Typography>
           
           <List>
@@ -222,7 +222,7 @@ function Documentation() {
           <Divider sx={{ my: 2 }} />
           
           <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mt: 2, mb: 1 }}>
-            How to Use AI Recommendations:
+            How to Use iDRP Assist Recommendations:
           </Typography>
           
           <List>
@@ -265,7 +265,7 @@ function Documentation() {
           </List>
           
           <Typography variant="body1" paragraph sx={{ mt: 2 }}>
-            The AI system learns from your choices and will improve its recommendations over time based on your feedback.
+            The iDRP Assist system learns from your choices and will improve its recommendations over time based on your feedback.
           </Typography>
         </AccordionDetails>
       </Accordion>

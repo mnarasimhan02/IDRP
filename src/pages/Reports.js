@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -18,154 +18,338 @@ import {
   TableHead,
   TableRow,
   Chip,
+  IconButton,
+  Tooltip,
   Divider,
-  useTheme
+  useTheme,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions
 } from '@mui/material';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
-import BarChartIcon from '@mui/icons-material/BarChart';
-import PieChartIcon from '@mui/icons-material/PieChart';
-import TimelineIcon from '@mui/icons-material/Timeline';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import ErrorIcon from '@mui/icons-material/Error';
-import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import { toast } from 'react-toastify';
+import { useState } from 'react';
 
-// Mock data for reports
-const mockComplianceData = [
+// Mock data for compliance reports
+const mockComplianceReports = [
   {
-    study: 'STUDY-001',
+    id: 'M24-885',
+    title: 'M24-885 - Final Lock - Compliance Report',
+    studyName: 'M24-885',
+    protocolTitle: 'A Phase 2a Multicenter, Randomized, Platform Study of Targeted Therapies for the Treatment of Adult Subjects with Moderate to Severe Crohn\'s Disease',
+    therapeuticArea: 'Immunology',
+    indication: 'Crohn\'s Disease',
+    compound: 'ABBV-766,ABBV-066,ABT-981,ABBV-382',
+    phase: 'Phase 2',
+    version: '1.0',
+    lastUpdated: '2025-03-14',
+    status: 'Final',
     totalChecks: 42,
-    completedChecks: 35,
-    pendingChecks: 5,
+    passedChecks: 40,
     failedChecks: 2,
-    lastRun: '2025-03-19',
-    status: 'In Progress'
+    checkCategories: [
+      'Cardiovascular (Cardiac) Adverse Event',
+      'Cardiovascular History and CV Risk Factors',
+      'Demographics',
+      'Laboratory Results',
+      'Medication'
+    ]
   },
   {
-    study: 'STUDY-002',
-    totalChecks: 36,
-    completedChecks: 30,
-    pendingChecks: 6,
-    failedChecks: 0,
-    lastRun: '2025-03-19',
-    status: 'In Progress'
-  },
-  {
-    study: 'STUDY-003',
-    totalChecks: 51,
-    completedChecks: 51,
-    pendingChecks: 0,
-    failedChecks: 0,
-    lastRun: '2025-03-18',
-    status: 'Complete'
-  },
-  {
-    study: 'STUDY-004',
-    totalChecks: 47,
-    completedChecks: 45,
-    pendingChecks: 0,
+    id: 'XYZ-123-P2',
+    title: 'XYZ-123-P2 - Final Lock - Compliance Report',
+    studyName: 'XYZ-123-P2',
+    protocolTitle: 'A Phase 3 Study of XYZ-123 in Patients with Rheumatoid Arthritis',
+    therapeuticArea: 'Immunology',
+    indication: 'Rheumatoid Arthritis',
+    compound: 'XYZ-123',
+    phase: 'Phase 3',
+    version: '1.0',
+    lastUpdated: '2025-03-10',
+    status: 'Final',
+    totalChecks: 38,
+    passedChecks: 36,
     failedChecks: 2,
-    lastRun: '2025-03-17',
-    status: 'Complete'
+    checkCategories: [
+      'Demographics',
+      'Laboratory Results',
+      'Adverse Events',
+      'Concomitant Medications',
+      'Efficacy Assessments'
+    ]
+  },
+  {
+    id: 'ABC-456',
+    title: 'ABC-456 - Interim Analysis - Compliance Report',
+    studyName: 'ABC-456',
+    protocolTitle: 'A Phase 2b Study of ABC-456 in Patients with Psoriasis',
+    therapeuticArea: 'Dermatology',
+    indication: 'Psoriasis',
+    compound: 'ABC-456',
+    phase: 'Phase 2b',
+    version: '0.9',
+    lastUpdated: '2025-03-01',
+    status: 'Draft',
+    totalChecks: 35,
+    passedChecks: 30,
+    failedChecks: 5,
+    checkCategories: [
+      'Demographics',
+      'Vital Signs',
+      'Laboratory Results',
+      'Adverse Events',
+      'Efficacy Assessments'
+    ]
+  },
+  {
+    id: 'DEF-789',
+    title: 'DEF-789 - Database Lock - Compliance Report',
+    studyName: 'DEF-789',
+    protocolTitle: 'A Phase 3 Study of DEF-789 in Patients with Ulcerative Colitis',
+    therapeuticArea: 'Immunology',
+    indication: 'Ulcerative Colitis',
+    compound: 'DEF-789',
+    phase: 'Phase 3',
+    version: '1.0',
+    lastUpdated: '2025-02-15',
+    status: 'Final',
+    totalChecks: 45,
+    passedChecks: 43,
+    failedChecks: 2,
+    checkCategories: [
+      'Demographics',
+      'Vital Signs',
+      'Laboratory Results',
+      'Adverse Events',
+      'Concomitant Medications',
+      'Efficacy Assessments'
+    ]
   }
 ];
 
-const mockIssuesData = [
-  {
-    study: 'STUDY-001',
-    issueId: 'ISS-001',
-    description: 'Missing date of birth for 3 subjects',
-    severity: 'Medium',
-    status: 'Open',
-    assignedTo: 'John Doe',
-    openDate: '2025-03-15'
+// Mock data for IDRP checks
+const mockIDRPChecks = {
+  'M24-885': {
+    checks: [
+      {
+        id: 'IDRP Check-1290352',
+        dataCategory: 'Cardiovascular (Cardiac) Adverse Event',
+        description: 'If the answer to "Was the subject hospitalized?" is "yes" and "Visit hospital emergency room?" is "yes" then date of admission should be equal to Date and time of visit Form: Cardiovascular (Cardiac) Adverse Event CRF. Time should be ignored during date comparison.',
+        role: 'Data Manager',
+        frequency: 'Weekly',
+        reviews: 0,
+        queriesClosed: 0,
+        tasksCompleted: 0,
+        observations: 0
+      },
+      {
+        id: 'IDRP Check-1290353',
+        dataCategory: 'Cardiovascular (Cardiac) Adverse Event',
+        description: 'If "Is this a Cardiovascular (Cardiac) AE?" is "Yes" then Cardiovascular Adverse event Form should be present and completed',
+        role: 'Data Manager',
+        frequency: 'Weekly',
+        reviews: 0,
+        queriesClosed: 0,
+        tasksCompleted: 0,
+        observations: 0
+      },
+      {
+        id: 'IDRP Check-1290354',
+        dataCategory: 'Cardiovascular History and CV Risk Factors',
+        description: 'Date Cardiovascular History and CV Risk Factors form should be on or before corresponding AE start date',
+        role: 'Data Manager',
+        frequency: 'Weekly',
+        reviews: 0,
+        queriesClosed: 0,
+        tasksCompleted: 0,
+        observations: 0
+      },
+      {
+        id: 'IDRP Check-1290355',
+        dataCategory: 'Cardiovascular History and CV Risk Factors',
+        description: 'If response for "Is this a cardiovascular (cardiac) AE?" is "Yes" on AE page then data for "Cardiovascular History and CV Risk Factors" eCRF should be entered.',
+        role: 'Data Manager',
+        frequency: 'Weekly',
+        reviews: 0,
+        queriesClosed: 0,
+        tasksCompleted: 0,
+        observations: 0
+      },
+      {
+        id: 'IDRP Check-1290359',
+        dataCategory: 'Demographics',
+        description: 'Date of collection must be on or prior to investigator decision',
+        role: 'Data Manager',
+        frequency: 'Weekly',
+        reviews: 0,
+        queriesClosed: 0,
+        tasksCompleted: 0,
+        observations: 0
+      }
+    ]
   },
-  {
-    study: 'STUDY-001',
-    issueId: 'ISS-002',
-    description: 'Out of range lab values for 2 subjects',
-    severity: 'High',
-    status: 'Open',
-    assignedTo: 'Jane Smith',
-    openDate: '2025-03-16'
+  'XYZ-123-P2': {
+    checks: [
+      {
+        id: 'IDRP Check-2345001',
+        dataCategory: 'Demographics',
+        description: 'Date of birth must be at least 18 years before screening date',
+        role: 'Data Manager',
+        frequency: 'Weekly',
+        reviews: 0,
+        queriesClosed: 0,
+        tasksCompleted: 0,
+        observations: 0
+      },
+      {
+        id: 'IDRP Check-2345002',
+        dataCategory: 'Laboratory Results',
+        description: 'All screening lab values must be within eligibility criteria range',
+        role: 'Data Manager',
+        frequency: 'Weekly',
+        reviews: 0,
+        queriesClosed: 0,
+        tasksCompleted: 0,
+        observations: 0
+      },
+      {
+        id: 'IDRP Check-2345003',
+        dataCategory: 'Adverse Events',
+        description: 'All serious adverse events must have corresponding SAE forms completed',
+        role: 'Data Manager',
+        frequency: 'Weekly',
+        reviews: 0,
+        queriesClosed: 0,
+        tasksCompleted: 0,
+        observations: 0
+      }
+    ]
   },
-  {
-    study: 'STUDY-002',
-    issueId: 'ISS-003',
-    description: 'Protocol deviation for visit scheduling',
-    severity: 'Low',
-    status: 'Closed',
-    assignedTo: 'Robert Johnson',
-    openDate: '2025-03-10',
-    closedDate: '2025-03-12'
+  'ABC-456': {
+    checks: [
+      {
+        id: 'IDRP Check-3456001',
+        dataCategory: 'Demographics',
+        description: 'All subjects must have complete demographic information',
+        role: 'Data Manager',
+        frequency: 'Weekly',
+        reviews: 0,
+        queriesClosed: 0,
+        tasksCompleted: 0,
+        observations: 0
+      },
+      {
+        id: 'IDRP Check-3456002',
+        dataCategory: 'Vital Signs',
+        description: 'Vital signs must be recorded at every visit',
+        role: 'Data Manager',
+        frequency: 'Weekly',
+        reviews: 0,
+        queriesClosed: 0,
+        tasksCompleted: 0,
+        observations: 0
+      }
+    ]
   },
-  {
-    study: 'STUDY-004',
-    issueId: 'ISS-004',
-    description: 'Prohibited medication detected',
-    severity: 'High',
-    status: 'Open',
-    assignedTo: 'Sarah Williams',
-    openDate: '2025-03-17'
-  },
-  {
-    study: 'STUDY-004',
-    issueId: 'ISS-005',
-    description: 'Missing efficacy endpoint data',
-    severity: 'High',
-    status: 'Closed',
-    assignedTo: 'John Doe',
-    openDate: '2025-03-15',
-    closedDate: '2025-03-18'
+  'DEF-789': {
+    checks: [
+      {
+        id: 'IDRP Check-4567001',
+        dataCategory: 'Demographics',
+        description: 'All subjects must have complete demographic information',
+        role: 'Data Manager',
+        frequency: 'Weekly',
+        reviews: 0,
+        queriesClosed: 0,
+        tasksCompleted: 0,
+        observations: 0
+      },
+      {
+        id: 'IDRP Check-4567002',
+        dataCategory: 'Efficacy Assessments',
+        description: 'Primary efficacy endpoint must be completed for all subjects at week 8',
+        role: 'Data Manager',
+        frequency: 'Weekly',
+        reviews: 0,
+        queriesClosed: 0,
+        tasksCompleted: 0,
+        observations: 0
+      }
+    ]
   }
-];
-
-// Severity color mapping
-const severityColors = {
-  'Low': '#4caf50',    // Green
-  'Medium': '#ff9800', // Orange
-  'High': '#f44336'    // Red
 };
 
 // Status color mapping
 const statusColors = {
-  'Open': '#f44336',   // Red
-  'Closed': '#4caf50', // Green
+  'Draft': '#757575',      // Grey
   'In Progress': '#2196f3', // Blue
-  'Complete': '#4caf50' // Green
+  'Final': '#4caf50'       // Green
 };
 
 function Reports() {
   const theme = useTheme();
   const [selectedStudy, setSelectedStudy] = useState('All');
-  const [selectedTimeframe, setSelectedTimeframe] = useState('Last 7 Days');
+  const [selectedReport, setSelectedReport] = useState(null);
+  const [openReportDialog, setOpenReportDialog] = useState(false);
+  const [pushToVeevaDialog, setPushToVeevaDialog] = useState(false);
+  const [currentReportId, setCurrentReportId] = useState(null);
+  
+  // Filter reports based on selected study
+  const filteredReports = selectedStudy === 'All' 
+    ? mockComplianceReports 
+    : mockComplianceReports.filter(report => report.studyName === selectedStudy);
   
   const handleStudyChange = (event) => {
     setSelectedStudy(event.target.value);
   };
   
-  const handleTimeframeChange = (event) => {
-    setSelectedTimeframe(event.target.value);
+  const handleViewReport = (reportId) => {
+    const report = mockComplianceReports.find(r => r.id === reportId);
+    setSelectedReport(report);
+    setOpenReportDialog(true);
   };
   
-  // Filter data based on selected study
-  const filteredComplianceData = selectedStudy === 'All' 
-    ? mockComplianceData 
-    : mockComplianceData.filter(item => item.study === selectedStudy);
-    
-  const filteredIssuesData = selectedStudy === 'All'
-    ? mockIssuesData
-    : mockIssuesData.filter(item => item.study === selectedStudy);
+  const handleCloseReportDialog = () => {
+    setOpenReportDialog(false);
+  };
+  
+  const handlePushToVeeva = (reportId) => {
+    setCurrentReportId(reportId);
+    setPushToVeevaDialog(true);
+  };
+  
+  const handleConfirmPushToVeeva = () => {
+    toast.success(`Successfully pushed ${currentReportId} compliance report to Veeva`);
+    setPushToVeevaDialog(false);
+  };
+  
+  const handleCancelPushToVeeva = () => {
+    setPushToVeevaDialog(false);
+  };
+  
+  const handleDownloadCSV = (reportId) => {
+    toast.success(`Downloaded ${reportId} compliance report as CSV`);
+  };
+  
+  const handleDownloadPDF = (reportId) => {
+    toast.success(`Downloaded ${reportId} compliance report as PDF`);
+  };
   
   return (
-    <Box>
+    <Box sx={{ p: 3 }}>
       <Typography variant="h4" component="h1" gutterBottom>
-        Reports & Compliance
+        Compliance Reports
       </Typography>
       
       {/* Filters */}
       <Paper sx={{ p: 3, mb: 4 }}>
         <Grid container spacing={3} alignItems="center">
-          <Grid item xs={12} sm={4}>
+          <Grid item xs={12} sm={6}>
             <FormControl fullWidth>
               <InputLabel>Study</InputLabel>
               <Select
@@ -174,201 +358,243 @@ function Reports() {
                 onChange={handleStudyChange}
               >
                 <MenuItem value="All">All Studies</MenuItem>
-                <MenuItem value="STUDY-001">STUDY-001</MenuItem>
-                <MenuItem value="STUDY-002">STUDY-002</MenuItem>
-                <MenuItem value="STUDY-003">STUDY-003</MenuItem>
-                <MenuItem value="STUDY-004">STUDY-004</MenuItem>
+                {mockComplianceReports.map(report => (
+                  <MenuItem key={report.studyName} value={report.studyName}>
+                    {report.studyName}
+                  </MenuItem>
+                ))}
               </Select>
             </FormControl>
-          </Grid>
-          <Grid item xs={12} sm={4}>
-            <FormControl fullWidth>
-              <InputLabel>Timeframe</InputLabel>
-              <Select
-                value={selectedTimeframe}
-                label="Timeframe"
-                onChange={handleTimeframeChange}
-              >
-                <MenuItem value="Last 7 Days">Last 7 Days</MenuItem>
-                <MenuItem value="Last 30 Days">Last 30 Days</MenuItem>
-                <MenuItem value="Last 90 Days">Last 90 Days</MenuItem>
-                <MenuItem value="Year to Date">Year to Date</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
-          <Grid item xs={12} sm={4}>
-            <Button 
-              variant="contained" 
-              startIcon={<FileDownloadIcon />}
-              fullWidth
-            >
-              Export Report
-            </Button>
           </Grid>
         </Grid>
       </Paper>
       
-      {/* Summary Cards */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                <CheckCircleIcon color="success" sx={{ mr: 1 }} />
-                <Typography color="textSecondary">
-                  Completed Checks
-                </Typography>
-              </Box>
-              <Typography variant="h4">
-                {filteredComplianceData.reduce((sum, item) => sum + item.completedChecks, 0)}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                <HourglassEmptyIcon color="primary" sx={{ mr: 1 }} />
-                <Typography color="textSecondary">
-                  Pending Checks
-                </Typography>
-              </Box>
-              <Typography variant="h4">
-                {filteredComplianceData.reduce((sum, item) => sum + item.pendingChecks, 0)}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                <ErrorIcon color="error" sx={{ mr: 1 }} />
-                <Typography color="textSecondary">
-                  Failed Checks
-                </Typography>
-              </Box>
-              <Typography variant="h4">
-                {filteredComplianceData.reduce((sum, item) => sum + item.failedChecks, 0)}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                <ErrorIcon color="error" sx={{ mr: 1 }} />
-                <Typography color="textSecondary">
-                  Open Issues
-                </Typography>
-              </Box>
-              <Typography variant="h4">
-                {filteredIssuesData.filter(issue => issue.status === 'Open').length}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-      
-      {/* Compliance Table */}
-      <Typography variant="h6" gutterBottom>
-        Compliance Status
-      </Typography>
-      <TableContainer component={Paper} sx={{ mb: 4 }}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Study</TableCell>
-              <TableCell>Total Checks</TableCell>
-              <TableCell>Completed</TableCell>
-              <TableCell>Pending</TableCell>
-              <TableCell>Failed</TableCell>
-              <TableCell>Last Run</TableCell>
-              <TableCell>Status</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {filteredComplianceData.map((item) => (
-              <TableRow key={item.study}>
-                <TableCell>{item.study}</TableCell>
-                <TableCell>{item.totalChecks}</TableCell>
-                <TableCell>{item.completedChecks}</TableCell>
-                <TableCell>{item.pendingChecks}</TableCell>
-                <TableCell>{item.failedChecks}</TableCell>
-                <TableCell>{item.lastRun}</TableCell>
-                <TableCell>
-                  <Chip 
-                    label={item.status} 
-                    size="small"
-                    sx={{ 
-                      backgroundColor: statusColors[item.status] + '20',
-                      color: statusColors[item.status],
-                      fontWeight: 'bold'
-                    }}
-                  />
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
-      
-      {/* Issues Table */}
-      <Typography variant="h6" gutterBottom>
-        Data Issues
-      </Typography>
+      {/* Compliance Reports Table */}
       <TableContainer component={Paper}>
         <Table>
           <TableHead>
-            <TableRow>
-              <TableCell>Issue ID</TableCell>
-              <TableCell>Study</TableCell>
-              <TableCell>Description</TableCell>
-              <TableCell>Severity</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell>Assigned To</TableCell>
-              <TableCell>Open Date</TableCell>
-              <TableCell>Closed Date</TableCell>
+            <TableRow sx={{ backgroundColor: theme.palette.primary.main }}>
+              <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Study ID</TableCell>
+              <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Report Title</TableCell>
+              <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Version</TableCell>
+              <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Last Updated</TableCell>
+              <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Status</TableCell>
+              <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Total Checks</TableCell>
+              <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {filteredIssuesData.map((issue) => (
-              <TableRow key={issue.issueId}>
-                <TableCell>{issue.issueId}</TableCell>
-                <TableCell>{issue.study}</TableCell>
-                <TableCell>{issue.description}</TableCell>
-                <TableCell>
-                  <Chip 
-                    label={issue.severity} 
-                    size="small"
-                    sx={{ 
-                      backgroundColor: severityColors[issue.severity] + '20',
-                      color: severityColors[issue.severity],
-                      fontWeight: 'bold'
-                    }}
-                  />
+            {filteredReports.length > 0 ? (
+              filteredReports.map((report) => (
+                <TableRow key={report.id}>
+                  <TableCell>{report.studyName}</TableCell>
+                  <TableCell>{report.title}</TableCell>
+                  <TableCell>{report.version}</TableCell>
+                  <TableCell>{report.lastUpdated}</TableCell>
+                  <TableCell>
+                    <Chip 
+                      label={report.status} 
+                      size="small"
+                      sx={{ 
+                        backgroundColor: statusColors[report.status] + '20',
+                        color: statusColors[report.status],
+                        fontWeight: 'bold'
+                      }}
+                    />
+                  </TableCell>
+                  <TableCell>{report.totalChecks}</TableCell>
+                  <TableCell>
+                    <Tooltip title="View Report">
+                      <IconButton 
+                        size="small" 
+                        color="primary"
+                        onClick={() => handleViewReport(report.id)}
+                      >
+                        <VisibilityIcon />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Download CSV">
+                      <IconButton 
+                        size="small" 
+                        color="primary"
+                        onClick={() => handleDownloadCSV(report.id)}
+                      >
+                        <FileDownloadIcon />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Download PDF">
+                      <IconButton 
+                        size="small" 
+                        color="secondary"
+                        onClick={() => handleDownloadPDF(report.id)}
+                      >
+                        <PictureAsPdfIcon />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Push to Veeva">
+                      <IconButton 
+                        size="small" 
+                        color="success"
+                        onClick={() => handlePushToVeeva(report.id)}
+                      >
+                        <CloudUploadIcon />
+                      </IconButton>
+                    </Tooltip>
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={7} align="center">
+                  No compliance reports found
                 </TableCell>
-                <TableCell>
-                  <Chip 
-                    label={issue.status} 
-                    size="small"
-                    sx={{ 
-                      backgroundColor: statusColors[issue.status] + '20',
-                      color: statusColors[issue.status],
-                      fontWeight: 'bold'
-                    }}
-                  />
-                </TableCell>
-                <TableCell>{issue.assignedTo}</TableCell>
-                <TableCell>{issue.openDate}</TableCell>
-                <TableCell>{issue.closedDate || '-'}</TableCell>
               </TableRow>
-            ))}
+            )}
           </TableBody>
         </Table>
       </TableContainer>
+      
+      {/* Report Detail Dialog */}
+      <Dialog
+        open={openReportDialog}
+        onClose={handleCloseReportDialog}
+        maxWidth="lg"
+        fullWidth
+      >
+        {selectedReport && (
+          <>
+            <DialogTitle>
+              {selectedReport.title}
+              <Typography variant="subtitle2" color="text.secondary">
+                Version {selectedReport.version} | {selectedReport.lastUpdated}
+              </Typography>
+            </DialogTitle>
+            <DialogContent>
+              <Grid container spacing={2} sx={{ mb: 3 }}>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Study Number</Typography>
+                  <Typography variant="body1">{selectedReport.studyName}</Typography>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Full Protocol Title</Typography>
+                  <Typography variant="body1">{selectedReport.protocolTitle}</Typography>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Therapeutic Area</Typography>
+                  <Typography variant="body1">{selectedReport.therapeuticArea}</Typography>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Indication</Typography>
+                  <Typography variant="body1">{selectedReport.indication}</Typography>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Compound</Typography>
+                  <Typography variant="body1">{selectedReport.compound}</Typography>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Phase</Typography>
+                  <Typography variant="body1">{selectedReport.phase}</Typography>
+                </Grid>
+              </Grid>
+              
+              <Divider sx={{ my: 2 }} />
+              
+              <Typography variant="h6" gutterBottom>
+                IDRP Checks
+              </Typography>
+              
+              <TableContainer component={Paper} sx={{ mb: 3 }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow sx={{ backgroundColor: theme.palette.grey[100] }}>
+                      <TableCell>IDRP Check ID</TableCell>
+                      <TableCell>Data Category</TableCell>
+                      <TableCell>IDRP Check Description</TableCell>
+                      <TableCell>Role</TableCell>
+                      <TableCell>Frequency</TableCell>
+                      <TableCell># of Reviews</TableCell>
+                      <TableCell>Queries Closed</TableCell>
+                      <TableCell>Tasks Completed</TableCell>
+                      <TableCell>Observations</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {mockIDRPChecks[selectedReport.studyName] && mockIDRPChecks[selectedReport.studyName].checks ? (
+                      mockIDRPChecks[selectedReport.studyName].checks.map((check) => (
+                        <TableRow key={check.id}>
+                          <TableCell>{check.id}</TableCell>
+                          <TableCell>{check.dataCategory}</TableCell>
+                          <TableCell>{check.description}</TableCell>
+                          <TableCell>{check.role}</TableCell>
+                          <TableCell>{check.frequency}</TableCell>
+                          <TableCell align="center">{check.reviews}</TableCell>
+                          <TableCell align="center">{check.queriesClosed}</TableCell>
+                          <TableCell align="center">{check.tasksCompleted}</TableCell>
+                          <TableCell align="center">{check.observations}</TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={9} align="center">
+                          No IDRP checks found for this study
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+              
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+                <Button
+                  variant="outlined"
+                  startIcon={<FileDownloadIcon />}
+                  onClick={() => handleDownloadCSV(selectedReport.id)}
+                >
+                  Download CSV
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<PictureAsPdfIcon />}
+                  onClick={() => handleDownloadPDF(selectedReport.id)}
+                  color="secondary"
+                >
+                  Download PDF
+                </Button>
+                <Button
+                  variant="contained"
+                  startIcon={<CloudUploadIcon />}
+                  onClick={() => {
+                    handleCloseReportDialog();
+                    handlePushToVeeva(selectedReport.id);
+                  }}
+                  color="success"
+                >
+                  Push to Veeva
+                </Button>
+              </Box>
+            </DialogContent>
+          </>
+        )}
+      </Dialog>
+      
+      {/* Push to Veeva Confirmation Dialog */}
+      <Dialog
+        open={pushToVeevaDialog}
+        onClose={handleCancelPushToVeeva}
+      >
+        <DialogTitle>Push to Veeva</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to push the {currentReportId} compliance report to Veeva?
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCancelPushToVeeva}>Cancel</Button>
+          <Button onClick={handleConfirmPushToVeeva} variant="contained" color="primary">
+            Confirm
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

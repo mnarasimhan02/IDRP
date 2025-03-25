@@ -57,7 +57,7 @@ function Navbar() {
             textDecoration: 'none',
           }}
         >
-          IDRP
+          Intelligent Data Review Plan
         </Typography>
 
         <Box sx={{ flexGrow: 1 }} />
@@ -91,7 +91,7 @@ function Navbar() {
             onClose={handleCloseNotificationsMenu}
           >
             <MenuItem onClick={handleCloseNotificationsMenu}>
-              <Typography textAlign="center">New AI recommendation for STUDY-001</Typography>
+              <Typography textAlign="center">New iDRP Assist recommendation for STUDY-001</Typography>
             </MenuItem>
             <MenuItem onClick={handleCloseNotificationsMenu}>
               <Typography textAlign="center">STUDY-002 moved to In-Review</Typography>

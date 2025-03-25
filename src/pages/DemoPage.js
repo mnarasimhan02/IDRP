@@ -361,7 +361,7 @@ function DemoPage() {
               </Grid>
               <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
                 <Button variant="contained" color="primary">
-                  Next: AI Recommendations
+                  Next: iDRP Assist
                 </Button>
               </Box>
             </Paper>

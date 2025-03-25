@@ -44,70 +44,10 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
 import RateReviewIcon from '@mui/icons-material/RateReview';
 import DraftsIcon from '@mui/icons-material/Drafts';
+import { useNavigate } from 'react-router-dom';
 
-// Mock data for the dashboard
-const mockIDRPs = [
-  {
-    id: 'IDRP-001',
-    studyName: 'STUDY-001',
-    status: 'Approved',
-    createdDate: '2025-01-10',
-    lastUpdated: '2025-03-15',
-    checkCount: 42,
-    collaborators: ['DM', 'MM', 'SR'],
-    version: '1.0'
-  },
-  {
-    id: 'IDRP-002',
-    studyName: 'STUDY-002',
-    status: 'In-Review',
-    createdDate: '2025-02-15',
-    lastUpdated: '2025-03-10',
-    checkCount: 36,
-    collaborators: ['DM', 'MM'],
-    version: '0.2'
-  },
-  {
-    id: 'IDRP-003',
-    studyName: 'STUDY-003',
-    status: 'Approved',
-    createdDate: '2024-12-15',
-    lastUpdated: '2025-02-28',
-    checkCount: 51,
-    collaborators: ['DM', 'MM', 'SR', 'SM'],
-    version: '1.0'
-  },
-  {
-    id: 'IDRP-004',
-    studyName: 'STUDY-004',
-    status: 'Approved',
-    createdDate: '2024-11-20',
-    lastUpdated: '2025-01-15',
-    checkCount: 47,
-    collaborators: ['DM', 'MM', 'SR', 'SM'],
-    version: '2.0'
-  },
-  {
-    id: 'IDRP-005',
-    studyName: 'Phase 3 Breast Cancer Study',
-    status: 'Reviewed',
-    createdDate: '2025-03-01',
-    lastUpdated: '2025-03-21',
-    checkCount: 38,
-    collaborators: ['DM', 'MM', 'SR'],
-    version: '0.3'
-  },
-  {
-    id: 'IDRP-006',
-    studyName: 'Oncology Phase 2 Trial',
-    status: 'Draft',
-    createdDate: '2025-03-18',
-    lastUpdated: '2025-03-18',
-    checkCount: 12,
-    collaborators: ['DM'],
-    version: '0.1'
-  }
-];
+// Empty mock data array - no pre-populated IDRPs
+const mockIDRPs = [];
 
 // Role color mapping
 const roleColors = {
@@ -136,8 +76,9 @@ const statusColors = {
 function Dashboard() {
   const theme = useTheme();
   const location = useLocation();
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
-  const [idrps, setIdrps] = useState(mockIDRPs || []);
+  const [idrps, setIdrps] = useState([]);
 
   // Load IDRPs from localStorage when the component mounts or when returning to the dashboard
   useEffect(() => {
@@ -150,49 +91,30 @@ function Dashboard() {
           return;
         }
         
-        // If no IDRPs in localStorage, initialize with mock data
-        if (storedIDRPs.length === 0) {
-          localStorage.setItem('idrps', JSON.stringify(mockIDRPs));
-          setIdrps(mockIDRPs);
-          return;
-        }
-        
-        // Check if any mock IDRPs have been updated in localStorage
-        const updatedMockIdrps = mockIDRPs.map(mockIdrp => {
-          const storedVersion = storedIDRPs.find(stored => stored && stored.id === mockIdrp.id);
-          return storedVersion || mockIdrp;
-        });
-        
-        // Add any new IDRPs from localStorage that aren't in the mock data
-        const existingIds = new Set(updatedMockIdrps.map(idrp => idrp.id));
-        const newIdrps = [
-          ...updatedMockIdrps,
-          ...storedIDRPs.filter(idrp => idrp && !existingIds.has(idrp.id))
-        ];
-        
-        setIdrps(newIdrps);
-        
-        // Update localStorage with the merged data
-        localStorage.setItem('idrps', JSON.stringify(newIdrps));
+        // Set IDRPs from localStorage
+        setIdrps(storedIDRPs);
       } catch (error) {
         console.error('Error loading IDRPs from localStorage:', error);
       }
     };
 
     loadIDRPs();
-    
-    // Add event listener for storage changes
-    window.addEventListener('storage', loadIDRPs);
-    
-    // Add a custom event listener for IDRP updates
-    const handleIDRPUpdate = () => loadIDRPs();
-    window.addEventListener('idrp-updated', handleIDRPUpdate);
-    
-    // Clean up event listeners
-    return () => {
-      window.removeEventListener('storage', loadIDRPs);
-      window.removeEventListener('idrp-updated', handleIDRPUpdate);
+
+    // Listen for IDRP updates from other components
+    const handleIdrpUpdate = () => {
+      loadIDRPs();
     };
+
+    window.addEventListener('idrp-updated', handleIdrpUpdate);
+
+    return () => {
+      window.removeEventListener('idrp-updated', handleIdrpUpdate);
+    };
+  }, [location]);
+
+  useEffect(() => {
+    // addHistoryToIDRPs();
+    // addDirectHistory();
   }, []);
 
   const filteredIDRPs = idrps && Array.isArray(idrps) ? idrps.filter(idrp => 

@@ -29,9 +29,9 @@ function FeaturesPage() {
 
   const featureSections = [
     {
-      title: "AI-Driven Recommendations",
+      title: "iDRP Assist Recommendations",
       icon: <RecommendIcon fontSize="large" color="primary" />,
-      description: "Leverage AI to recommend data quality checks based on study attributes and historical data.",
+      description: "Leverage iDRP Assist to recommend data quality checks based on study attributes and historical data.",
       details: [
         "Recommendations from Standard Library based on study attributes",
         "Suggestions from Similar Studies with comparable metadata",
@@ -55,7 +55,7 @@ function FeaturesPage() {
       icon: <AssignmentTurnedInIcon fontSize="large" color="primary" />,
       description: "Three-tier workflow from draft to approval with version control and change tracking.",
       details: [
-        "Draft → AI-generated IDRP with user review capabilities",
+        "Draft → iDRP Assist generated IDRP with user review capabilities",
         "In-Review → Shared with stakeholders for feedback",
         "Approved → Finalized and ready for execution",
         "Version control with major versions (1.0, 2.0, 3.0)",
@@ -77,12 +77,12 @@ function FeaturesPage() {
     {
       title: "IDRP Creation Wizard",
       icon: <WizardIcon fontSize="large" color="primary" />,
-      description: "Step-by-step wizard for creating new IDRPs with AI recommendations.",
+      description: "Step-by-step wizard for creating new IDRPs with iDRP Assist recommendations.",
       details: [
         "Step 1: Study Information capture",
-        "Step 2: AI Recommendations with accept/modify/reject options",
+        "Step 2: iDRP Assist with accept/modify/reject options",
         "Step 3: Review & Submit with role-based assignments",
-        "Differentiation between library, study-specific, and AI-generated checks",
+        "Differentiation between library, study-specific, and iDRP Assist generated checks",
         "Standardized column structure validation"
       ]
     },
