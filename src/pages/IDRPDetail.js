@@ -73,18 +73,19 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import InfoIcon from '@mui/icons-material/Info';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import AssessmentIcon from '@mui/icons-material/Assessment';
+import CloseIcon from '@mui/icons-material/Close';
 import { toast } from 'react-toastify';
 import { populateCurrentIDRP } from '../utils';
 
 // Empty mock data - no pre-populated IDRPs
 const mockIDRPs = {};
 
-// Role colors for avatars
+// Role colors for avatars and chips
 const roleColors = {
-  'DM': '#1976d2',  // Data Manager - Blue
-  'MM': '#9c27b0',  // Medical Monitor - Purple
-  'SR': '#f44336',  // Safety Reviewer - Red
-  'SM': '#4caf50'   // Study Manager - Green
+  'DM': '#1976d2',
+  'MM': '#388e3c',
+  'SR': '#d32f2f',
+  'Default': '#757575'
 };
 
 // Role full names
@@ -141,30 +142,33 @@ function IDRPDetail({ isEditing = false }) {
   const [tabValue, setTabValue] = useState(0);
   const [menuAnchorEl, setMenuAnchorEl] = useState(null);
   const [addCheckDialogOpen, setAddCheckDialogOpen] = useState(false);
-  const [newCheckData, setNewCheckData] = useState({
+  const [customChecks, setCustomChecks] = useState([{
     checkType: '',
     checkCategory: '',
     dataCategory: '',
     visit: '',
     description: '',
     queryText: '',
-    roles: [], // Initialize as empty array for multiple select
+    roles: [],
     frequency: '',
     source: ''
-  });
+  }]);
+  const [selectedCheck, setSelectedCheck] = useState(null);
+  const [editCheckDialogOpen, setEditCheckDialogOpen] = useState(false);
+  const [deleteCheckDialogOpen, setDeleteCheckDialogOpen] = useState(false);
   const [addCommentDialogOpen, setAddCommentDialogOpen] = useState(false);
-  const [newComment, setNewComment] = useState('');
-  const [currentIDRP, setCurrentIDRP] = useState(null);
   const [selectedCheckForComment, setSelectedCheckForComment] = useState(null);
+  const [newComment, setNewComment] = useState('');
   const [commentDialogOpen, setCommentDialogOpen] = useState(false);
   const [checkComments, setCheckComments] = useState([]);
-  const [editCheckDialogOpen, setEditCheckDialogOpen] = useState(false);
-  const [currentEditCheck, setCurrentEditCheck] = useState(null);
-  const [editedCheckData, setEditedCheckData] = useState({});
-  const [deleteCheckDialogOpen, setDeleteCheckDialogOpen] = useState(false);
-  const [checkToDelete, setCheckToDelete] = useState(null);
+  const [currentIDRP, setCurrentIDRP] = useState(null);
   const [newVersionDialogOpen, setNewVersionDialogOpen] = useState(false);
   const [statusChangeDialogOpen, setStatusChangeDialogOpen] = useState(false);
+
+  // Permissions and mode
+  const canEditChecks = currentIDRP?.status === 'Draft' || currentIDRP?.status === 'Reviewed';
+  const canAddComments = true; // Comments can be added in any status
+  const editMode = isEditing && canEditChecks;
 
   useEffect(() => {
     // Find the IDRP data for this ID
@@ -225,115 +229,220 @@ function IDRPDetail({ isEditing = false }) {
   };
 
   const handleAddCheckDialogOpen = () => {
-    // Reset the form data
-    setNewCheckData({
+    setCustomChecks([{
       checkType: '',
       checkCategory: '',
       dataCategory: '',
       visit: '',
       description: '',
       queryText: '',
-      roles: [], // Initialize as empty array for multiple select
+      roles: [],
       frequency: '',
       source: ''
-    });
+    }]);
     setAddCheckDialogOpen(true);
   };
 
   const handleAddCheckDialogClose = () => {
+    setCustomChecks([{
+      checkType: '',
+      checkCategory: '',
+      dataCategory: '',
+      visit: '',
+      description: '',
+      queryText: '',
+      roles: [],
+      frequency: '',
+      source: ''
+    }]);
     setAddCheckDialogOpen(false);
   };
 
-  const handleNewCheckChange = (field, value) => {
-    setNewCheckData(prev => ({
-      ...prev,
-      [field]: value
-    }));
+  const handleAddRow = () => {
+    setCustomChecks([...customChecks, {
+      checkType: '',
+      checkCategory: '',
+      dataCategory: '',
+      visit: '',
+      description: '',
+      queryText: '',
+      roles: [],
+      frequency: '',
+      source: ''
+    }]);
   };
 
-  const handleAddCheck = () => {
-    // Validate required fields
-    if (!newCheckData.checkType || !newCheckData.checkCategory || !newCheckData.dataCategory) {
-      toast.error('Please fill in all required fields');
+  const handleCheckChange = (index, field, value) => {
+    const updatedChecks = customChecks.map((check, i) => {
+      if (i === index) {
+        return { ...check, [field]: value };
+      }
+      return check;
+    });
+    setCustomChecks(updatedChecks);
+  };
+
+  const handleAddAllChecks = () => {
+    const validChecks = customChecks.filter(check => 
+      check.checkType && check.checkCategory && check.dataCategory && check.description
+    );
+
+    if (validChecks.length === 0) {
+      toast.error('Please fill in all required fields for at least one check');
       return;
     }
 
-    // Create a new check object
-    const newCheck = {
-      id: `check-${Date.now()}`,
-      ...newCheckData
-    };
-    
-    // Update IDRP with new check
+    const newChecks = validChecks.map(check => ({
+      id: `check-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      ...check,
+      status: 'Active'
+    }));
+
     const updatedIDRP = {
       ...currentIDRP,
-      checks: [...(currentIDRP.checks || []), newCheck],
+      checks: [...(currentIDRP.checks || []), ...newChecks],
       lastUpdated: new Date().toISOString().split('T')[0],
       history: [
         ...(currentIDRP.history || []),
         {
           date: new Date().toISOString().split('T')[0],
-          user: 'Current User', // In a real app, this would be the logged-in user
-          action: `Added check ${newCheck.id}`,
+          user: 'Current User',
+          action: `Added ${newChecks.length} checks`,
           version: currentIDRP.version
         }
-      ],
-      audit: [
-        ...(currentIDRP.audit || []),
-        createAuditEntry(
-          'check_add',
-          `Added check ${newCheck.id}`,
-          null,
-          JSON.stringify({
-            checkType: newCheck.checkType,
-            checkCategory: newCheck.checkCategory,
-            description: newCheck.description
-          })
-        )
       ]
     };
 
-    // Save to localStorage
     try {
-      const storedIDRPs = JSON.parse(localStorage.getItem('idrps') || '[]');
-      let updatedIDRPs = [];
-      
-      // Check if this IDRP already exists in localStorage
-      if (storedIDRPs.some(idrp => idrp.id === updatedIDRP.id)) {
-        // Update existing IDRP
-        updatedIDRPs = storedIDRPs.map(idrp => 
-          idrp.id === updatedIDRP.id ? updatedIDRP : idrp
-        );
-      } else {
-        // Add new IDRP
-        updatedIDRPs = [...storedIDRPs, updatedIDRP];
-      }
-      
-      localStorage.setItem('idrps', JSON.stringify(updatedIDRPs));
-      setCurrentIDRP(updatedIDRP);
-      
-      // Dispatch a custom event to notify other components of the update
-      window.dispatchEvent(new CustomEvent('idrp-updated', { detail: updatedIDRP }));
+      saveIDRPToLocalStorage(updatedIDRP);
+      toast.success(`Successfully added ${newChecks.length} checks`, { toastId: 'checks-added' });
+      setCustomChecks([{
+        checkType: '',
+        checkCategory: '',
+        dataCategory: '',
+        visit: '',
+        description: '',
+        queryText: '',
+        roles: [],
+        frequency: '',
+        source: ''
+      }]);
+      setAddCheckDialogOpen(false);
     } catch (error) {
-      console.error('Error saving IDRP to localStorage:', error);
+      toast.error('Failed to add checks', { toastId: 'checks-error' });
     }
+  };
 
-    // Close the dialog
-    handleAddCheckDialogClose();
+  const handleEditCheckDialogOpen = (check) => {
+    setSelectedCheck({...check});
+    setEditCheckDialogOpen(true);
+  };
+
+  const handleEditCheckDialogClose = () => {
+    setSelectedCheck(null);
+    setEditCheckDialogOpen(false);
+  };
+
+  const handleDeleteCheckDialogOpen = (check) => {
+    setSelectedCheck({...check});
+    setDeleteCheckDialogOpen(true);
+  };
+
+  const handleDeleteCheckDialogClose = () => {
+    setSelectedCheck(null);
+    setDeleteCheckDialogOpen(false);
+  };
+
+  const handleSaveEditedCheck = () => {
+    if (!selectedCheck) return;
+
+    const updatedChecks = currentIDRP.checks.map(check =>
+      check.id === selectedCheck.id ? selectedCheck : check
+    );
+
+    const updatedIDRP = {
+      ...currentIDRP,
+      checks: updatedChecks,
+      lastUpdated: new Date().toISOString().split('T')[0],
+      history: [
+        ...(currentIDRP.history || []),
+        {
+          date: new Date().toISOString().split('T')[0],
+          user: 'Current User',
+          action: `Edited check ${selectedCheck.id}`,
+          version: currentIDRP.version
+        }
+      ]
+    };
+
+    try {
+      saveIDRPToLocalStorage(updatedIDRP);
+      toast.success('Check updated successfully', { toastId: 'check-updated' });
+    } catch (error) {
+      toast.error('Failed to update check', { toastId: 'check-update-error' });
+    }
+    handleEditCheckDialogClose();
+  };
+
+  const handleDeleteCheck = () => {
+    if (!selectedCheck) return;
+
+    const updatedChecks = currentIDRP.checks.filter(check => check.id !== selectedCheck.id);
+
+    const updatedIDRP = {
+      ...currentIDRP,
+      checks: updatedChecks,
+      lastUpdated: new Date().toISOString().split('T')[0],
+      history: [
+        ...(currentIDRP.history || []),
+        {
+          date: new Date().toISOString().split('T')[0],
+          user: 'Current User',
+          action: `Deleted check ${selectedCheck.id}`,
+          version: currentIDRP.version
+        }
+      ]
+    };
+
+    try {
+      saveIDRPToLocalStorage(updatedIDRP);
+      toast.success('Check deleted successfully', { toastId: 'check-deleted' });
+    } catch (error) {
+      toast.error('Failed to delete check', { toastId: 'check-delete-error' });
+    }
+    handleDeleteCheckDialogClose();
   };
 
   const handleAddCommentDialogOpen = (checkId = null) => {
     setSelectedCheckForComment(checkId);
+    setNewComment('');
     setAddCommentDialogOpen(true);
   };
 
   const handleAddCommentDialogClose = () => {
     setSelectedCheckForComment(null);
+    setNewComment('');
     setAddCommentDialogOpen(false);
   };
 
   const handleCommentChange = (event) => {
     setNewComment(event.target.value);
+  };
+
+  const handleCheckCommentsOpen = (checkId) => {
+    const check = currentIDRP.checks.find(c => c.id === checkId);
+    if (!check) return;
+    
+    setSelectedCheckForComment(checkId);
+    const comments = currentIDRP.comments?.filter(comment => comment.checkId === checkId) || [];
+    setCheckComments(comments);
+    setCommentDialogOpen(true);
+  };
+
+  const handleCheckCommentsClose = () => {
+    setSelectedCheckForComment(null);
+    setCheckComments([]);
+    setCommentDialogOpen(false);
   };
 
   const handleAddComment = () => {
@@ -342,18 +451,16 @@ function IDRPDetail({ isEditing = false }) {
       return;
     }
 
-    // Create new comment object
     const newCommentObj = {
       id: `comment-${Date.now()}`,
       checkId: selectedCheckForComment,
-      user: 'Current User', // In a real app, this would be the logged-in user
-      role: 'Data Manager', // In a real app, this would be the user's role
-      text: newComment,
+      user: 'Current User',
+      role: 'DM',
+      text: newComment.trim(),
       timestamp: new Date().toISOString(),
       replies: []
     };
 
-    // Update IDRP with new comment
     const updatedIDRP = {
       ...currentIDRP,
       comments: [...(currentIDRP.comments || []), newCommentObj],
@@ -362,52 +469,25 @@ function IDRPDetail({ isEditing = false }) {
         ...(currentIDRP.history || []),
         {
           date: new Date().toISOString().split('T')[0],
-          user: 'Current User', // In a real app, this would be the logged-in user
+          user: 'Current User',
           action: `Added comment ${selectedCheckForComment ? `to check ${selectedCheckForComment}` : 'to IDRP'}`,
           version: currentIDRP.version
         }
-      ],
-      audit: [
-        ...(currentIDRP.audit || []),
-        createAuditEntry(
-          'comment_add',
-          `Added comment ${selectedCheckForComment ? `to check ${selectedCheckForComment}` : 'to IDRP'}`,
-          null,
-          newComment
-        )
       ]
     };
 
-    // Save to localStorage
     try {
-      const storedIDRPs = JSON.parse(localStorage.getItem('idrps') || '[]');
-      let updatedIDRPs = [];
+      saveIDRPToLocalStorage(updatedIDRP);
+      toast.success('Comment added successfully', { toastId: 'comment-added' });
+      handleAddCommentDialogClose();
       
-      // Check if this IDRP already exists in localStorage
-      if (storedIDRPs.some(idrp => idrp.id === updatedIDRP.id)) {
-        // Update existing IDRP
-        updatedIDRPs = storedIDRPs.map(idrp => 
-          idrp.id === updatedIDRP.id ? updatedIDRP : idrp
-        );
-      } else {
-        // Add new IDRP
-        updatedIDRPs = [...storedIDRPs, updatedIDRP];
+      // If we're in the comments dialog, refresh it
+      if (commentDialogOpen) {
+        handleCheckCommentsOpen(selectedCheckForComment);
       }
-      
-      localStorage.setItem('idrps', JSON.stringify(updatedIDRPs));
-      setCurrentIDRP(updatedIDRP);
-      
-      // Dispatch a custom event to notify other components of the update
-      window.dispatchEvent(new CustomEvent('idrp-updated', { detail: updatedIDRP }));
-      window.dispatchEvent(new CustomEvent('comment-added', { detail: newCommentObj }));
     } catch (error) {
-      console.error('Error saving IDRP to localStorage:', error);
+      toast.error('Failed to add comment', { toastId: 'comment-error' });
     }
-
-    // Reset form
-    setNewComment('');
-    setSelectedCheckForComment(null);
-    setAddCommentDialogOpen(false);
   };
 
   const handleStatusChangeDialogOpen = () => {
@@ -475,10 +555,10 @@ function IDRPDetail({ isEditing = false }) {
       window.dispatchEvent(new CustomEvent('idrp-updated', { detail: newVersionIDRP }));
       
       // Show success toast
-      toast.success(`Created new version ${newVersion} successfully`);
+      toast.success(`Created new version ${newVersion} successfully`, { toastId: 'new-version-created' });
     } catch (error) {
       console.error('Error saving IDRP to localStorage:', error);
-      toast.error('Error creating new version');
+      toast.error('Error creating new version', { toastId: 'new-version-error' });
     }
   };
 
@@ -565,226 +645,30 @@ function IDRPDetail({ isEditing = false }) {
       
       // Show success toast
       if (newStatus === 'Approved') {
-        toast.success(`IDRP approved and version updated to ${updatedIDRP.version}`);
+        toast.success(`IDRP approved and version updated to ${updatedIDRP.version}`, { toastId: 'status-approved' });
       } else {
-        toast.success(`Status changed to ${newStatus}`);
+        toast.success(`Status changed to ${newStatus}`, { toastId: 'status-changed' });
       }
     } catch (error) {
       console.error('Error saving IDRP to localStorage:', error);
-      toast.error('Error changing status');
+      toast.error('Error changing status', { toastId: 'status-error' });
     }
   };
 
-  // Handle opening the check comments dialog
-  const handleCheckCommentsOpen = (checkId) => {
-    const check = currentIDRP.checks.find(c => c.id === checkId);
-    const comments = currentIDRP.comments.filter(c => c.checkId === checkId);
-    setSelectedCheckForComment(checkId);
-    setCheckComments(comments);
-    setCommentDialogOpen(true);
-  };
-
-  // Handle closing the check comments dialog
-  const handleCheckCommentsClose = () => {
-    setSelectedCheckForComment(null);
-    setCheckComments([]);
-    setCommentDialogOpen(false);
-  };
-
-  // Check if a check has comments
-  const checkHasComments = (checkId) => {
-    return currentIDRP?.comments?.some(c => c.checkId === checkId) || false;
-  };
-
-  // Get the number of comments for a check
-  const getCommentCount = (checkId) => {
-    return currentIDRP?.comments?.filter(c => c.checkId === checkId).length || 0;
-  };
-
-  // Check if user can edit checks based on status
-  const canEditChecks = currentIDRP.status === 'Draft' || currentIDRP.status === 'Reviewed';
-  
-  // Check if user can add comments (always allowed)
-  const canAddComments = true;
-
-  // Set edit mode based on prop and permissions
-  const editMode = isEditing && canEditChecks;
-
-  const handleEditCheckDialogOpen = (check) => {
-    setCurrentEditCheck(check);
-    setEditedCheckData({ ...check });
-    setEditCheckDialogOpen(true);
-  };
-
-  const handleEditCheckDialogClose = () => {
-    setCurrentEditCheck(null);
-    setEditedCheckData({});
-    setEditCheckDialogOpen(false);
-  };
-
-  const handleEditCheckChange = (field, value) => {
-    setEditedCheckData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-
-  const handleDeleteCheckDialogOpen = (check) => {
-    setCheckToDelete(check);
-    setDeleteCheckDialogOpen(true);
-  };
-
-  const handleDeleteCheckDialogClose = () => {
-    setCheckToDelete(null);
-    setDeleteCheckDialogOpen(false);
-  };
-
-  const handleDeleteCheck = () => {
-    if (!checkToDelete) return;
-    
-    // Find the check to delete to capture its data for the audit
-    const checkToBeDeleted = currentIDRP.checks.find(check => check.id === checkToDelete);
-    
-    if (!checkToBeDeleted) {
-      toast.error('Check not found');
-      handleDeleteCheckDialogClose();
-      return;
-    }
-    
-    // Create updated IDRP without the deleted check
-    const updatedIDRP = {
-      ...currentIDRP,
-      checks: currentIDRP.checks.filter(check => check.id !== checkToDelete),
-      lastUpdated: new Date().toISOString().split('T')[0],
-      history: [
-        ...(currentIDRP.history || []),
-        {
-          date: new Date().toISOString().split('T')[0],
-          user: 'Current User', // In a real app, this would be the logged-in user
-          action: `Deleted check ${checkToDelete}`,
-          version: currentIDRP.version
-        }
-      ],
-      audit: [
-        ...(currentIDRP.audit || []),
-        createAuditEntry(
-          'check_delete',
-          `Deleted check ${checkToDelete}`,
-          JSON.stringify({
-            checkType: checkToBeDeleted.checkType,
-            checkCategory: checkToBeDeleted.checkCategory,
-            description: checkToBeDeleted.description
-          }),
-          null
-        )
-      ]
-    };
-
-    // Save to localStorage
+  // Helper function to save IDRP to localStorage
+  const saveIDRPToLocalStorage = (updatedIDRP) => {
     try {
       const storedIDRPs = JSON.parse(localStorage.getItem('idrps') || '[]');
-      let updatedIDRPs = [];
-      
-      // Check if this IDRP already exists in localStorage
-      if (storedIDRPs.some(idrp => idrp.id === updatedIDRP.id)) {
-        // Update existing IDRP
-        updatedIDRPs = storedIDRPs.map(idrp => 
-          idrp.id === updatedIDRP.id ? updatedIDRP : idrp
-        );
-      } else {
-        // Add new IDRP
-        updatedIDRPs = [...storedIDRPs, updatedIDRP];
-      }
+      const updatedIDRPs = storedIDRPs.map(idrp =>
+        idrp.id === updatedIDRP.id ? updatedIDRP : idrp
+      );
       
       localStorage.setItem('idrps', JSON.stringify(updatedIDRPs));
       setCurrentIDRP(updatedIDRP);
-      
-      // Dispatch a custom event to notify other components of the update
-      window.dispatchEvent(new CustomEvent('idrp-updated', { detail: updatedIDRP }));
     } catch (error) {
       console.error('Error saving IDRP to localStorage:', error);
+      throw error;
     }
-
-    handleDeleteCheckDialogClose();
-  };
-
-  const handleSaveEditedCheck = () => {
-    // Find the check to edit
-    const checkIndex = currentIDRP.checks.findIndex(check => check.id === currentEditCheck?.id);
-    
-    if (checkIndex === -1) {
-      toast.error('Check not found');
-      return;
-    }
-    
-    const originalCheck = currentIDRP.checks[checkIndex];
-    
-    // Create updated checks array
-    const updatedChecks = [...currentIDRP.checks];
-    updatedChecks[checkIndex] = {
-      ...originalCheck,
-      ...editedCheckData
-    };
-    
-    // Update IDRP with edited check
-    const updatedIDRP = {
-      ...currentIDRP,
-      checks: updatedChecks,
-      lastUpdated: new Date().toISOString().split('T')[0],
-      history: [
-        ...(currentIDRP.history || []),
-        {
-          date: new Date().toISOString().split('T')[0],
-          user: 'Current User', // In a real app, this would be the logged-in user
-          action: `Edited check ${currentEditCheck?.id}`,
-          version: currentIDRP.version
-        }
-      ],
-      audit: [
-        ...(currentIDRP.audit || []),
-        createAuditEntry(
-          'check_edit',
-          `Edited check ${currentEditCheck?.id}`,
-          JSON.stringify({
-            checkType: originalCheck.checkType,
-            checkCategory: originalCheck.checkCategory,
-            description: originalCheck.description
-          }),
-          JSON.stringify({
-            checkType: editedCheckData.checkType || originalCheck.checkType,
-            checkCategory: editedCheckData.checkCategory || originalCheck.checkCategory,
-            description: editedCheckData.description || originalCheck.description
-          })
-        )
-      ]
-    };
-
-    // Save to localStorage
-    try {
-      const storedIDRPs = JSON.parse(localStorage.getItem('idrps') || '[]');
-      let updatedIDRPs = [];
-      
-      // Check if this IDRP already exists in localStorage
-      if (storedIDRPs.some(idrp => idrp.id === updatedIDRP.id)) {
-        // Update existing IDRP
-        updatedIDRPs = storedIDRPs.map(idrp => 
-          idrp.id === updatedIDRP.id ? updatedIDRP : idrp
-        );
-      } else {
-        // Add new IDRP
-        updatedIDRPs = [...storedIDRPs, updatedIDRP];
-      }
-      
-      localStorage.setItem('idrps', JSON.stringify(updatedIDRPs));
-      setCurrentIDRP(updatedIDRP);
-      
-      // Dispatch a custom event to notify other components of the update
-      window.dispatchEvent(new CustomEvent('idrp-updated', { detail: updatedIDRP }));
-    } catch (error) {
-      console.error('Error saving IDRP to localStorage:', error);
-    }
-
-    handleEditCheckDialogClose();
   };
 
   return (
@@ -1174,33 +1058,46 @@ function IDRPDetail({ isEditing = false }) {
                       </TableCell>
                       <TableCell>{check.frequency}</TableCell>
                       <TableCell align="right">
-                        <IconButton 
-                          size="small"
-                          disabled={currentIDRP.status === 'Approved' || currentIDRP.status === 'In-Review'}
-                          onClick={() => handleEditCheckDialogOpen(check)}
-                        >
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                        <IconButton 
-                          size="small"
-                          disabled={currentIDRP.status === 'Approved' || currentIDRP.status === 'In-Review'}
-                          onClick={() => handleDeleteCheckDialogOpen(check)}
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                        <IconButton 
-                          size="small"
-                          onClick={() => handleCheckCommentsOpen(check.id)}
-                          color={checkHasComments(check.id) ? "primary" : "default"}
-                        >
-                          <Badge 
-                            badgeContent={getCommentCount(check.id)} 
-                            color="secondary" 
-                            invisible={!checkHasComments(check.id)}
+                        <Tooltip title="Edit Check">
+                          <span>
+                            <IconButton 
+                              size="small"
+                              disabled={currentIDRP.status === 'Approved' || currentIDRP.status === 'In-Review'}
+                              onClick={() => handleEditCheckDialogOpen(check)}
+                              sx={{ '&:hover': { color: 'primary.main' } }}
+                            >
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                        <Tooltip title="Delete Check">
+                          <span>
+                            <IconButton 
+                              size="small"
+                              disabled={currentIDRP.status === 'Approved' || currentIDRP.status === 'In-Review'}
+                              onClick={() => handleDeleteCheckDialogOpen(check)}
+                              sx={{ '&:hover': { color: 'error.main' } }}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                        <Tooltip title="View Comments">
+                          <IconButton 
+                            size="small"
+                            onClick={() => handleCheckCommentsOpen(check.id)}
+                            color="primary"
+                            sx={{ '&:hover': { color: 'primary.main' } }}
                           >
-                            <CommentIcon fontSize="small" />
-                          </Badge>
-                        </IconButton>
+                            <Badge 
+                              badgeContent={currentIDRP.comments?.filter(comment => comment.checkId === check.id).length || 0} 
+                              color="secondary" 
+                              invisible={!currentIDRP.comments?.some(comment => comment.checkId === check.id)}
+                            >
+                              <CommentIcon fontSize="small" />
+                            </Badge>
+                          </IconButton>
+                        </Tooltip>
                       </TableCell>
                     </TableRow>
                   ))
@@ -1257,105 +1154,65 @@ function IDRPDetail({ isEditing = false }) {
       {tabValue === 3 && (
         <Box>
           <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
-            <Button 
-              variant="contained" 
+            <Button
+              variant="contained"
               startIcon={<CommentIcon />}
-              onClick={() => handleAddCommentDialogOpen()}
+              onClick={() => handleAddCommentDialogOpen(null)}
+              sx={{ '&:hover': { backgroundColor: 'primary.dark' } }}
             >
               Add General Comment
             </Button>
           </Box>
-            
-          {currentIDRP && currentIDRP.comments && currentIDRP.comments.length > 0 ? (
-            <Box>
-              {/* Group comments by check */}
-              <Typography variant="h6" sx={{ mb: 2 }}>General Comments</Typography>
-              <Paper sx={{ p: 2, mb: 4 }}>
-                {currentIDRP.comments
-                  .filter(comment => !comment.checkId)
-                  .length > 0 ? (
-                    currentIDRP.comments
-                      .filter(comment => !comment.checkId)
-                      .map(comment => (
-                        <Box key={comment.id} sx={{ mb: 2, pb: 2, borderBottom: '1px solid #eee' }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                            <Avatar sx={{ bgcolor: roleColors[comment.role] || '#ccc', width: 32, height: 32, mr: 1, fontSize: '0.875rem' }}>
-                              {comment.user && comment.user.substring(0, 2)}
-                            </Avatar>
-                            <Typography variant="subtitle2">{comment.user} ({comment.role})</Typography>
-                            <Typography variant="body2" color="textSecondary" sx={{ ml: 1 }}>
-                              {comment.date}
-                            </Typography>
-                          </Box>
-                          <Typography variant="body2">
-                            {comment.text}
-                          </Typography>
-                        </Box>
-                      ))
-                  ) : (
-                    <Typography variant="body2" color="textSecondary">
-                      No general comments available
+          <List>
+            {currentIDRP?.comments?.filter(comment => !comment.checkId)?.map((comment) => (
+              <Paper key={comment.id} sx={{ mb: 2, p: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+                  <Avatar 
+                    sx={{ 
+                      bgcolor: roleColors[comment.role] || '#ccc',
+                      width: 32,
+                      height: 32,
+                      fontSize: '0.875rem'
+                    }}
+                  >
+                    {comment.role}
+                  </Avatar>
+                  <Box sx={{ flexGrow: 1 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                      <Typography variant="subtitle2">
+                        {comment.user}
+                        <Typography
+                          component="span"
+                          variant="caption"
+                          color="textSecondary"
+                          sx={{ ml: 1 }}
+                        >
+                          {new Date(comment.timestamp).toLocaleString()}
+                        </Typography>
+                      </Typography>
+                      <Chip 
+                        label={comment.role} 
+                        size="small"
+                        sx={{ 
+                          bgcolor: roleColors[comment.role] + '20',
+                          color: roleColors[comment.role],
+                          fontWeight: 'bold'
+                        }}
+                      />
+                    </Box>
+                    <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                      {comment.text}
                     </Typography>
-                  )}
+                  </Box>
+                </Box>
               </Paper>
-                
-              <Typography variant="h6" sx={{ mb: 2 }}>Check-Specific Comments</Typography>
-              {/* Group comments by check ID */}
-              {currentIDRP && currentIDRP.comments && currentIDRP.checks && 
-                currentIDRP.comments.filter(comment => comment.checkId).length > 0 ? (
-                  Array.from(new Set(currentIDRP.comments
-                    .filter(comment => comment.checkId)
-                    .map(comment => comment.checkId)))
-                    .map(checkId => {
-                      const checkComments = currentIDRP.comments.filter(comment => comment.checkId === checkId);
-                      const check = currentIDRP.checks.find(c => c.id === checkId);
-                        
-                      return (
-                        <Paper key={checkId} sx={{ p: 2, mb: 2 }}>
-                          <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 'bold' }}>
-                            Check {checkId}: {check ? check.description : 'Unknown Check'}
-                          </Typography>
-                          {checkComments.map(comment => (
-                            <Box key={comment.id} sx={{ mb: 2, pl: 2, borderLeft: '3px solid #1976d2' }}>
-                              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                                <Avatar sx={{ bgcolor: roleColors[comment.role] || '#ccc', width: 32, height: 32, mr: 1, fontSize: '0.875rem' }}>
-                                  {comment.user && comment.user.substring(0, 2)}
-                                </Avatar>
-                                <Typography variant="subtitle2">{comment.user} ({comment.role})</Typography>
-                                <Typography variant="body2" color="textSecondary" sx={{ ml: 1 }}>
-                                  {comment.date}
-                                </Typography>
-                              </Box>
-                              <Typography variant="body2">
-                                {comment.text}
-                              </Typography>
-                            </Box>
-                          ))}
-                          <Button 
-                            size="small" 
-                            startIcon={<CommentIcon />}
-                            onClick={() => handleAddCommentDialogOpen(checkId)}
-                            sx={{ mt: 1 }}
-                          >
-                            Reply
-                          </Button>
-                        </Paper>
-                      );
-                    })
-                ) : (
-                  <Typography variant="body2" color="textSecondary">
-                    No check-specific comments available
-                  </Typography>
-                )}
-            </Box>
-          ) : (
-            <Box sx={{ textAlign: 'center', py: 4 }}>
-              <CommentIcon sx={{ fontSize: 40, color: 'text.secondary', mb: 2 }} />
-              <Typography variant="body1" color="textSecondary">
-                No comments yet. Add a general comment or comment on a specific check.
+            ))}
+            {(!currentIDRP?.comments || currentIDRP.comments.filter(comment => !comment.checkId).length === 0) && (
+              <Typography variant="body2" color="textSecondary" align="center">
+                No general comments yet. Click the button above to add one.
               </Typography>
-            </Box>
-          )}
+            )}
+          </List>
         </Box>
       )}
 
@@ -1727,6 +1584,432 @@ function IDRPDetail({ isEditing = false }) {
           </Accordion>
         </Box>
       )}
+      
+      {/* Add Check Dialog */}
+      <Dialog
+        open={addCheckDialogOpen}
+        onClose={handleAddCheckDialogClose}
+        maxWidth="xl"
+        fullWidth
+      >
+        <DialogTitle>
+          Add Custom Checks
+          <IconButton
+            aria-label="close"
+            onClick={handleAddCheckDialogClose}
+            sx={{
+              position: 'absolute',
+              right: 8,
+              top: 8,
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="subtitle2" gutterBottom>
+              Enter Multiple Custom Checks
+            </Typography>
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Check Type</TableCell>
+                    <TableCell>Check Category</TableCell>
+                    <TableCell>Data Category</TableCell>
+                    <TableCell>Visit</TableCell>
+                    <TableCell>Description</TableCell>
+                    <TableCell>Query Text</TableCell>
+                    <TableCell>Roles</TableCell>
+                    <TableCell>Frequency</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {customChecks.map((check, index) => (
+                    <TableRow key={index}>
+                      <TableCell>
+                        <FormControl fullWidth size="small" required>
+                          <Select
+                            value={check.checkType}
+                            onChange={(e) => handleCheckChange(index, 'checkType', e.target.value)}
+                          >
+                            <MenuItem value="">Select</MenuItem>
+                            <MenuItem value="Data Quality">Data Quality</MenuItem>
+                            <MenuItem value="Data Consistency">Data Consistency</MenuItem>
+                            <MenuItem value="Protocol Compliance">Protocol Compliance</MenuItem>
+                            <MenuItem value="Safety">Safety</MenuItem>
+                          </Select>
+                        </FormControl>
+                      </TableCell>
+                      <TableCell>
+                        <FormControl fullWidth size="small" required>
+                          <Select
+                            value={check.checkCategory}
+                            onChange={(e) => handleCheckChange(index, 'checkCategory', e.target.value)}
+                          >
+                            <MenuItem value="">Select</MenuItem>
+                            <MenuItem value="Missing Data">Missing Data</MenuItem>
+                            <MenuItem value="Out of Range">Out of Range</MenuItem>
+                            <MenuItem value="Logical Checks">Logical Checks</MenuItem>
+                            <MenuItem value="Cross Form">Cross Form</MenuItem>
+                          </Select>
+                        </FormControl>
+                      </TableCell>
+                      <TableCell>
+                        <FormControl fullWidth size="small" required>
+                          <Select
+                            value={check.dataCategory}
+                            onChange={(e) => handleCheckChange(index, 'dataCategory', e.target.value)}
+                          >
+                            <MenuItem value="">Select</MenuItem>
+                            <MenuItem value="Demographics">Demographics</MenuItem>
+                            <MenuItem value="Vital Signs">Vital Signs</MenuItem>
+                            <MenuItem value="Labs">Labs</MenuItem>
+                            <MenuItem value="Adverse Events">Adverse Events</MenuItem>
+                            <MenuItem value="Medications">Medications</MenuItem>
+                          </Select>
+                        </FormControl>
+                      </TableCell>
+                      <TableCell>
+                        <FormControl fullWidth size="small">
+                          <Select
+                            value={check.visit}
+                            onChange={(e) => handleCheckChange(index, 'visit', e.target.value)}
+                          >
+                            <MenuItem value="">Select</MenuItem>
+                            <MenuItem value="Screening">Screening</MenuItem>
+                            <MenuItem value="Baseline">Baseline</MenuItem>
+                            <MenuItem value="Treatment">Treatment</MenuItem>
+                            <MenuItem value="Follow-up">Follow-up</MenuItem>
+                          </Select>
+                        </FormControl>
+                      </TableCell>
+                      <TableCell>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          required
+                          value={check.description}
+                          onChange={(e) => handleCheckChange(index, 'description', e.target.value)}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          value={check.queryText}
+                          onChange={(e) => handleCheckChange(index, 'queryText', e.target.value)}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <FormControl fullWidth size="small">
+                          <Select
+                            multiple
+                            value={check.roles}
+                            onChange={(e) => handleCheckChange(index, 'roles', e.target.value)}
+                            renderValue={(selected) => selected.join(', ')}
+                          >
+                            <MenuItem value="DM">Data Manager</MenuItem>
+                            <MenuItem value="MM">Medical Monitor</MenuItem>
+                            <MenuItem value="SR">Safety Reviewer</MenuItem>
+                          </Select>
+                        </FormControl>
+                      </TableCell>
+                      <TableCell>
+                        <FormControl fullWidth size="small">
+                          <Select
+                            value={check.frequency}
+                            onChange={(e) => handleCheckChange(index, 'frequency', e.target.value)}
+                          >
+                            <MenuItem value="">Select</MenuItem>
+                            <MenuItem value="Daily">Daily</MenuItem>
+                            <MenuItem value="Weekly">Weekly</MenuItem>
+                            <MenuItem value="Monthly">Monthly</MenuItem>
+                            <MenuItem value="Quarterly">Quarterly</MenuItem>
+                          </Select>
+                        </FormControl>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+            <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between' }}>
+              <Button
+                startIcon={<AddIcon />}
+                onClick={handleAddRow}
+                color="primary"
+              >
+                Add Row
+              </Button>
+              <Button
+                variant="contained"
+                onClick={handleAddAllChecks}
+                disabled={!customChecks.some(check => 
+                  check.checkType && check.checkCategory && check.dataCategory && check.description
+                )}
+              >
+                Add All Checks
+              </Button>
+            </Box>
+          </Box>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Comments Dialog */}
+      <Dialog
+        open={commentDialogOpen}
+        onClose={handleCheckCommentsClose}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          Comments
+          <IconButton
+            aria-label="close"
+            onClick={handleCheckCommentsClose}
+            sx={{
+              position: 'absolute',
+              right: 8,
+              top: 8,
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ mb: 2 }}>
+            {selectedCheckForComment && (
+              <Box sx={{ mb: 3, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
+                <Typography variant="subtitle2" gutterBottom>
+                  Comments for check:
+                </Typography>
+                <Typography variant="body2">
+                  {currentIDRP.checks.find(c => c.id === selectedCheckForComment)?.description || ''}
+                </Typography>
+              </Box>
+            )}
+            {checkComments.length > 0 ? (
+              checkComments.map((comment) => (
+                <Paper key={comment.id} sx={{ p: 2, mb: 2 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+                    <Avatar 
+                      sx={{ 
+                        bgcolor: roleColors[comment.role] || roleColors.Default,
+                        width: 32,
+                        height: 32,
+                        fontSize: '0.875rem'
+                      }}
+                    >
+                      {comment.role}
+                    </Avatar>
+                    <Box sx={{ flexGrow: 1 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                        <Typography variant="subtitle2">
+                          {comment.user}
+                          <Typography
+                            component="span"
+                            variant="caption"
+                            color="textSecondary"
+                            sx={{ ml: 1 }}
+                          >
+                            {new Date(comment.timestamp).toLocaleString()}
+                          </Typography>
+                        </Typography>
+                        <Chip 
+                          label={comment.role} 
+                          size="small"
+                          sx={{ 
+                            bgcolor: `${roleColors[comment.role] || roleColors.Default}20`,
+                            color: roleColors[comment.role] || roleColors.Default,
+                            fontWeight: 'bold'
+                          }}
+                        />
+                      </Box>
+                      <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                        {comment.text}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Paper>
+              ))
+            ) : (
+              <Typography variant="body2" color="textSecondary" align="center">
+                No comments yet.
+              </Typography>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCheckCommentsClose} color="inherit">
+            Close
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<CommentIcon />}
+            onClick={() => {
+              handleCheckCommentsClose();
+              handleAddCommentDialogOpen(selectedCheckForComment);
+            }}
+          >
+            Add Comment
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Edit Check Dialog */}
+      <Dialog
+        open={editCheckDialogOpen}
+        onClose={handleEditCheckDialogClose}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Edit Check</DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12} md={6}>
+              <FormControl fullWidth required>
+                <InputLabel>Check Type</InputLabel>
+                <Select
+                  value={selectedCheck?.checkType || ''}
+                  onChange={(e) => setSelectedCheck(prev => ({ ...prev, checkType: e.target.value }))}
+                  label="Check Type"
+                >
+                  <MenuItem value="Critical Data">Critical Data</MenuItem>
+                  <MenuItem value="Eligibility">Eligibility</MenuItem>
+                  <MenuItem value="Safety">Safety</MenuItem>
+                  <MenuItem value="Protocol Deviation">Protocol Deviation</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <FormControl fullWidth required>
+                <InputLabel>Check Category</InputLabel>
+                <Select
+                  value={selectedCheck?.checkCategory || ''}
+                  onChange={(e) => setSelectedCheck(prev => ({ ...prev, checkCategory: e.target.value }))}
+                  label="Check Category"
+                >
+                  <MenuItem value="Critical Data">Critical Data</MenuItem>
+                  <MenuItem value="Eligibility">Eligibility</MenuItem>
+                  <MenuItem value="Safety">Safety</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                required
+                label="Description"
+                value={selectedCheck?.description || ''}
+                onChange={(e) => setSelectedCheck(prev => ({ ...prev, description: e.target.value }))}
+                multiline
+                rows={3}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                required
+                label="Query Text"
+                value={selectedCheck?.queryText || ''}
+                onChange={(e) => setSelectedCheck(prev => ({ ...prev, queryText: e.target.value }))}
+                multiline
+                rows={2}
+              />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <FormControl fullWidth>
+                <InputLabel>Roles</InputLabel>
+                <Select
+                  multiple
+                  value={selectedCheck?.roles || []}
+                  onChange={(e) => setSelectedCheck(prev => ({ ...prev, roles: e.target.value }))}
+                  label="Roles"
+                  renderValue={(selected) => (
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                      {selected.map((value) => (
+                        <Chip key={value} label={value} size="small" />
+                      ))}
+                    </Box>
+                  )}
+                >
+                  <MenuItem value="DM">Data Manager (DM)</MenuItem>
+                  <MenuItem value="MM">Medical Monitor (MM)</MenuItem>
+                  <MenuItem value="SR">Scientific Reviewer (SR)</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <FormControl fullWidth>
+                <InputLabel>Frequency</InputLabel>
+                <Select
+                  value={selectedCheck?.frequency || ''}
+                  onChange={(e) => setSelectedCheck(prev => ({ ...prev, frequency: e.target.value }))}
+                  label="Frequency"
+                >
+                  <MenuItem value="Daily">Daily</MenuItem>
+                  <MenuItem value="Weekly">Weekly</MenuItem>
+                  <MenuItem value="Monthly">Monthly</MenuItem>
+                  <MenuItem value="Custom">Custom</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleEditCheckDialogClose} color="inherit">
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSaveEditedCheck}
+            variant="contained"
+            disabled={!selectedCheck?.checkType || !selectedCheck?.checkCategory || !selectedCheck?.description}
+          >
+            Save Changes
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Check Dialog */}
+      <Dialog
+        open={deleteCheckDialogOpen}
+        onClose={handleDeleteCheckDialogClose}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Delete Check</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to delete this check? This action cannot be undone.
+          </DialogContentText>
+          {selectedCheck && (
+            <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
+              <Typography variant="subtitle2" gutterBottom>
+                Check Details:
+              </Typography>
+              <Typography variant="body2">
+                <strong>Type:</strong> {selectedCheck.checkType}
+              </Typography>
+              <Typography variant="body2">
+                <strong>Category:</strong> {selectedCheck.checkCategory}
+              </Typography>
+              <Typography variant="body2">
+                <strong>Description:</strong> {selectedCheck.description}
+              </Typography>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleDeleteCheckDialogClose} color="inherit">
+            Cancel
+          </Button>
+          <Button onClick={handleDeleteCheck} color="error" variant="contained">
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
