@@ -74,6 +74,7 @@ import InfoIcon from '@mui/icons-material/Info';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import CloseIcon from '@mui/icons-material/Close';
+import ReplyIcon from '@mui/icons-material/Reply';
 import { toast } from 'react-toastify';
 import { populateCurrentIDRP } from '../utils';
 
@@ -156,10 +157,10 @@ function IDRPDetail({ isEditing = false }) {
   const [selectedCheck, setSelectedCheck] = useState(null);
   const [editCheckDialogOpen, setEditCheckDialogOpen] = useState(false);
   const [deleteCheckDialogOpen, setDeleteCheckDialogOpen] = useState(false);
-  const [addCommentDialogOpen, setAddCommentDialogOpen] = useState(false);
-  const [selectedCheckForComment, setSelectedCheckForComment] = useState(null);
   const [newComment, setNewComment] = useState('');
-  const [commentDialogOpen, setCommentDialogOpen] = useState(false);
+  const [selectedCheckId, setSelectedCheckId] = useState(null);
+  const [replyToCommentId, setReplyToCommentId] = useState(null);
+  const [commentsDialogOpen, setCommentsDialogOpen] = useState(false);
   const [checkComments, setCheckComments] = useState([]);
   const [currentIDRP, setCurrentIDRP] = useState(null);
   const [newVersionDialogOpen, setNewVersionDialogOpen] = useState(false);
@@ -430,52 +431,43 @@ function IDRPDetail({ isEditing = false }) {
     handleDeleteCheckDialogClose();
   };
 
-  const handleAddCommentDialogOpen = (checkId = null) => {
-    setSelectedCheckForComment(checkId);
-    setNewComment('');
-    setAddCommentDialogOpen(true);
-  };
-
-  const handleAddCommentDialogClose = () => {
-    setSelectedCheckForComment(null);
-    setNewComment('');
-    setAddCommentDialogOpen(false);
-  };
-
   const handleCommentChange = (event) => {
     setNewComment(event.target.value);
   };
 
-  const handleCheckCommentsOpen = (checkId) => {
-    const check = currentIDRP.checks.find(c => c.id === checkId);
-    if (!check) return;
-    
-    setSelectedCheckForComment(checkId);
-    const comments = currentIDRP.comments?.filter(comment => comment.checkId === checkId) || [];
-    setCheckComments(comments);
-    setCommentDialogOpen(true);
+  const handleCommentsOpen = (checkId) => {
+    setSelectedCheckId(checkId);
+    setCommentsDialogOpen(true);
   };
 
-  const handleCheckCommentsClose = () => {
-    setSelectedCheckForComment(null);
-    setCheckComments([]);
-    setCommentDialogOpen(false);
+  const handleCommentsClose = () => {
+    setSelectedCheckId(null);
+    setReplyToCommentId(null);
+    setNewComment('');
+    setCommentsDialogOpen(false);
+  };
+
+  const handleReplyClick = (commentId) => {
+    setReplyToCommentId(commentId);
+    setNewComment('');
   };
 
   const handleAddComment = () => {
     if (!newComment.trim()) {
-      toast.error('Comment cannot be empty');
+      toast.error('Please enter a comment');
       return;
     }
 
+    const timestamp = new Date().toISOString();
+    const commentId = `comment-${Date.now()}`;
+    
     const newCommentObj = {
-      id: `comment-${Date.now()}`,
-      checkId: selectedCheckForComment,
+      id: commentId,
+      text: newComment,
+      timestamp,
       user: 'Current User',
-      role: 'DM',
-      text: newComment.trim(),
-      timestamp: new Date().toISOString(),
-      replies: []
+      parentId: replyToCommentId,
+      checkId: selectedCheckId
     };
 
     const updatedIDRP = {
@@ -487,7 +479,7 @@ function IDRPDetail({ isEditing = false }) {
         {
           date: new Date().toISOString().split('T')[0],
           user: 'Current User',
-          action: `Added comment ${selectedCheckForComment ? `to check ${selectedCheckForComment}` : 'to IDRP'}`,
+          action: replyToCommentId ? 'Added reply to comment' : 'Added comment',
           version: currentIDRP.version
         }
       ]
@@ -495,13 +487,10 @@ function IDRPDetail({ isEditing = false }) {
 
     try {
       saveIDRPToLocalStorage(updatedIDRP);
+      setCurrentIDRP(updatedIDRP);
+      setNewComment('');
+      setReplyToCommentId(null);
       toast.success('Comment added successfully', { toastId: 'comment-added' });
-      handleAddCommentDialogClose();
-      
-      // If we're in the comments dialog, refresh it
-      if (commentDialogOpen) {
-        handleCheckCommentsOpen(selectedCheckForComment);
-      }
     } catch (error) {
       toast.error('Failed to add comment', { toastId: 'comment-error' });
     }
@@ -686,6 +675,61 @@ function IDRPDetail({ isEditing = false }) {
       throw error;
     }
   };
+
+  // Helper function to organize comments in a threaded structure
+  const getThreadedComments = (checkId) => {
+    const comments = (currentIDRP.comments || [])
+      .filter(comment => comment.checkId === checkId);
+    
+    const commentMap = {};
+    const rootComments = [];
+
+    comments.forEach(comment => {
+      commentMap[comment.id] = {
+        ...comment,
+        replies: []
+      };
+    });
+
+    comments.forEach(comment => {
+      if (comment.parentId) {
+        commentMap[comment.parentId]?.replies.push(commentMap[comment.id]);
+      } else {
+        rootComments.push(commentMap[comment.id]);
+      }
+    });
+
+    return rootComments;
+  };
+
+  // Render a single comment with its replies
+  const renderComment = (comment, depth = 0) => (
+    <Box key={comment.id} sx={{ ml: depth * 3, mb: 2 }}>
+      <Card variant="outlined">
+        <CardContent>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+            <Typography variant="subtitle2" color="primary">
+              {comment.user}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              {new Date(comment.timestamp).toLocaleString()}
+            </Typography>
+          </Box>
+          <Typography variant="body2">{comment.text}</Typography>
+          <Box sx={{ mt: 1, display: 'flex', justifyContent: 'flex-end' }}>
+            <Button
+              size="small"
+              startIcon={<ReplyIcon />}
+              onClick={() => handleReplyClick(comment.id)}
+            >
+              Reply
+            </Button>
+          </Box>
+        </CardContent>
+      </Card>
+      {comment.replies?.map(reply => renderComment(reply, depth + 1))}
+    </Box>
+  );
 
   return (
     <Box>
@@ -1101,7 +1145,7 @@ function IDRPDetail({ isEditing = false }) {
                         <Tooltip title="View Comments">
                           <IconButton 
                             size="small"
-                            onClick={() => handleCheckCommentsOpen(check.id)}
+                            onClick={() => handleCommentsOpen(check.id)}
                             color="primary"
                             sx={{ '&:hover': { color: 'primary.main' } }}
                           >
@@ -1173,55 +1217,17 @@ function IDRPDetail({ isEditing = false }) {
             <Button
               variant="contained"
               startIcon={<CommentIcon />}
-              onClick={() => handleAddCommentDialogOpen(null)}
-              sx={{ '&:hover': { backgroundColor: 'primary.dark' } }}
+              onClick={() => {
+                setReplyToCommentId(null);
+                setCommentsDialogOpen(true);
+              }}
             >
-              Add General Comment
+              Add Comment
             </Button>
           </Box>
           <List>
             {currentIDRP?.comments?.filter(comment => !comment.checkId)?.map((comment) => (
-              <Paper key={comment.id} sx={{ mb: 2, p: 2 }}>
-                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-                  <Avatar 
-                    sx={{ 
-                      bgcolor: roleColors[comment.role] || '#ccc',
-                      width: 32,
-                      height: 32,
-                      fontSize: '0.875rem'
-                    }}
-                  >
-                    {comment.role}
-                  </Avatar>
-                  <Box sx={{ flexGrow: 1 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                      <Typography variant="subtitle2">
-                        {comment.user}
-                        <Typography
-                          component="span"
-                          variant="caption"
-                          color="textSecondary"
-                          sx={{ ml: 1 }}
-                        >
-                          {new Date(comment.timestamp).toLocaleString()}
-                        </Typography>
-                      </Typography>
-                      <Chip 
-                        label={comment.role} 
-                        size="small"
-                        sx={{ 
-                          bgcolor: roleColors[comment.role] + '20',
-                          color: roleColors[comment.role],
-                          fontWeight: 'bold'
-                        }}
-                      />
-                    </Box>
-                    <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-                      {comment.text}
-                    </Typography>
-                  </Box>
-                </Box>
-              </Paper>
+              renderComment(comment)
             ))}
             {(!currentIDRP?.comments || currentIDRP.comments.filter(comment => !comment.checkId).length === 0) && (
               <Typography variant="body2" color="textSecondary" align="center">
@@ -1688,7 +1694,7 @@ function IDRPDetail({ isEditing = false }) {
                         </FormControl>
                       </TableCell>
                       <TableCell>
-                        <FormControl fullWidth size="small">
+                        <FormControl fullWidth>
                           <Select
                             value={check.visit}
                             onChange={(e) => handleCheckChange(index, 'visit', e.target.value)}
@@ -1772,18 +1778,18 @@ function IDRPDetail({ isEditing = false }) {
         </DialogContent>
       </Dialog>
 
-      {/* View Comments Dialog */}
+      {/* Comments Dialog */}
       <Dialog
-        open={commentDialogOpen}
-        onClose={handleCheckCommentsClose}
+        open={commentsDialogOpen}
+        onClose={handleCommentsClose}
         maxWidth="md"
         fullWidth
       >
         <DialogTitle>
-          Comments
+          Comments for check
           <IconButton
             aria-label="close"
-            onClick={handleCheckCommentsClose}
+            onClick={handleCommentsClose}
             sx={{
               position: 'absolute',
               right: 8,
@@ -1795,82 +1801,47 @@ function IDRPDetail({ isEditing = false }) {
         </DialogTitle>
         <DialogContent>
           <Box sx={{ mb: 2 }}>
-            {selectedCheckForComment && (
-              <Box sx={{ mb: 3, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
+            {selectedCheckId && (
+              <>
                 <Typography variant="subtitle2" gutterBottom>
-                  Comments for check:
+                  {currentIDRP.checks.find(c => c.id === selectedCheckId)?.description}
                 </Typography>
-                <Typography variant="body2">
-                  {currentIDRP.checks.find(c => c.id === selectedCheckForComment)?.description || ''}
-                </Typography>
-              </Box>
-            )}
-            {checkComments.length > 0 ? (
-              checkComments.map((comment) => (
-                <Paper key={comment.id} sx={{ p: 2, mb: 2 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-                    <Avatar 
-                      sx={{ 
-                        bgcolor: roleColors[comment.role] || roleColors.Default,
-                        width: 32,
-                        height: 32,
-                        fontSize: '0.875rem'
-                      }}
+                <Box sx={{ mt: 2 }}>
+                  {getThreadedComments(selectedCheckId).map(comment => renderComment(comment))}
+                </Box>
+                <Box sx={{ mt: 2 }}>
+                  <TextField
+                    autoFocus
+                    margin="dense"
+                    label={replyToCommentId ? "Your reply" : "Your comment"}
+                    fullWidth
+                    multiline
+                    rows={4}
+                    value={newComment}
+                    onChange={handleCommentChange}
+                  />
+                  <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                    {replyToCommentId && (
+                      <Button 
+                        color="inherit" 
+                        onClick={() => setReplyToCommentId(null)}
+                      >
+                        Cancel Reply
+                      </Button>
+                    )}
+                    <Button 
+                      variant="contained" 
+                      onClick={handleAddComment}
+                      disabled={!newComment.trim()}
                     >
-                      {comment.role}
-                    </Avatar>
-                    <Box sx={{ flexGrow: 1 }}>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                        <Typography variant="subtitle2">
-                          {comment.user}
-                          <Typography
-                            component="span"
-                            variant="caption"
-                            color="textSecondary"
-                            sx={{ ml: 1 }}
-                          >
-                            {new Date(comment.timestamp).toLocaleString()}
-                          </Typography>
-                        </Typography>
-                        <Chip 
-                          label={comment.role} 
-                          size="small"
-                          sx={{ 
-                            bgcolor: `${roleColors[comment.role] || roleColors.Default}20`,
-                            color: roleColors[comment.role] || roleColors.Default,
-                            fontWeight: 'bold'
-                          }}
-                        />
-                      </Box>
-                      <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-                        {comment.text}
-                      </Typography>
-                    </Box>
+                      {replyToCommentId ? 'Reply' : 'Add Comment'}
+                    </Button>
                   </Box>
-                </Paper>
-              ))
-            ) : (
-              <Typography variant="body2" color="textSecondary" align="center">
-                No comments yet.
-              </Typography>
+                </Box>
+              </>
             )}
           </Box>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCheckCommentsClose} color="inherit">
-            Close
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={<CommentIcon />}
-            onClick={() => {
-              handleCheckCommentsClose();
-              handleAddCommentDialogOpen(selectedCheckForComment);
-            }}
-          >
-            Add Comment
-          </Button>
-        </DialogActions>
       </Dialog>
 
       {/* Edit Check Dialog */}
