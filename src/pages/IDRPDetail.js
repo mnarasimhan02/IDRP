@@ -282,6 +282,19 @@ function IDRPDetail({ isEditing = false }) {
     setCustomChecks(updatedChecks);
   };
 
+  // Helper function to get the next check number
+  const getNextCheckNumber = () => {
+    const allChecks = (currentIDRP.checks || [])
+      .map(check => {
+        const match = check.id.match(/Std\.Check-(\d+)/);
+        return match ? parseInt(match[1]) : 0;
+      })
+      .filter(num => num > 0);
+    
+    const maxNumber = allChecks.length > 0 ? Math.max(...allChecks) : 1607; // Start from 1608 if no checks exist
+    return maxNumber + 1;
+  };
+
   const handleAddAllChecks = () => {
     const validChecks = customChecks.filter(check => 
       check.checkType && check.checkCategory && check.dataCategory && check.description
@@ -292,11 +305,15 @@ function IDRPDetail({ isEditing = false }) {
       return;
     }
 
-    const newChecks = validChecks.map(check => ({
-      id: `check-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      ...check,
-      status: 'Active'
-    }));
+    let nextCheckNumber = getNextCheckNumber();
+    const newChecks = validChecks.map(check => {
+      const checkId = `Std.Check-${nextCheckNumber++}`;
+      return {
+        id: checkId,
+        ...check,
+        status: 'Active'
+      };
+    });
 
     const updatedIDRP = {
       ...currentIDRP,
@@ -307,7 +324,7 @@ function IDRPDetail({ isEditing = false }) {
         {
           date: new Date().toISOString().split('T')[0],
           user: 'Current User',
-          action: `Added ${newChecks.length} checks`,
+          action: `Added ${newChecks.length} checks (${newChecks.map(c => c.id).join(', ')})`,
           version: currentIDRP.version
         }
       ]
@@ -609,8 +626,7 @@ function IDRPDetail({ isEditing = false }) {
     if (newStatus === 'Approved') {
       // Parse current version and increment major version
       const currentVersion = parseFloat(currentIDRP.version);
-      const majorVersion = Math.floor(currentVersion);
-      updatedIDRP.version = (majorVersion + 1).toFixed(1);
+      updatedIDRP.version = (Math.floor(currentVersion) + 1).toFixed(1);
       
       // Add version update to history
       updatedIDRP.history.push({
@@ -1688,8 +1704,8 @@ function IDRPDetail({ isEditing = false }) {
                       <TableCell>
                         <TextField
                           fullWidth
-                          size="small"
                           required
+                          label="Description"
                           value={check.description}
                           onChange={(e) => handleCheckChange(index, 'description', e.target.value)}
                         />
@@ -1697,13 +1713,12 @@ function IDRPDetail({ isEditing = false }) {
                       <TableCell>
                         <TextField
                           fullWidth
-                          size="small"
                           value={check.queryText}
                           onChange={(e) => handleCheckChange(index, 'queryText', e.target.value)}
                         />
                       </TableCell>
                       <TableCell>
-                        <FormControl fullWidth size="small">
+                        <FormControl fullWidth>
                           <Select
                             multiple
                             value={check.roles}
@@ -1717,7 +1732,7 @@ function IDRPDetail({ isEditing = false }) {
                         </FormControl>
                       </TableCell>
                       <TableCell>
-                        <FormControl fullWidth size="small">
+                        <FormControl fullWidth>
                           <Select
                             value={check.frequency}
                             onChange={(e) => handleCheckChange(index, 'frequency', e.target.value)}
